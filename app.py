@@ -6,34 +6,37 @@ import requests
 from bs4 import BeautifulSoup
 import urllib3
 
-# Configuración inicial
+# --- CONFIGURACIÓN E INTERFAZ ---
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-st.set_page_config(page_title="Píllalo | El Rayo del Ahorro", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Píllalo | Catálogo de Ahorros", page_icon="⚡", layout="wide")
 
-# --- ESTILOS CSS MEJORADOS ---
+# Estilo CSS para tarjetas y diseño móvil
 st.markdown("""
     <style>
+    .main { background-color: #f3f4f6; }
+    .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; }
     .product-card {
         background-color: white;
         padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        margin-bottom: 15px;
-        border: 1px solid #e2e8f0;
+        border-radius: 15px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 20px;
     }
-    .badge-pago {
-        background-color: #f1f5f9;
-        color: #475569;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 11px;
-        margin-right: 5px;
+    .category-badge {
+        background-color: #dbeafe;
+        color: #1e40af;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
     }
-    .rating-star { color: #f59e0b; font-weight: bold; }
+    .price-usd { color: #059669; font-size: 24px; font-weight: 800; }
+    .price-bs { color: #6b7280; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNCIONES DE APOYO (BCV Y GOOGLE) ---
+# --- FUNCIONES DE DATOS ---
 def obtener_tasa_bcv():
     try:
         url = "https://www.bcv.org.ve/"
@@ -42,7 +45,7 @@ def obtener_tasa_bcv():
         soup = BeautifulSoup(response.text, 'html.parser')
         tasa = soup.find("div", id="dolar").find("strong").text.strip()
         return float(tasa.replace(',', '.'))
-    except: return 48.50
+    except: return 48.50 # Tasa de seguridad
 
 @st.cache_resource
 def conectar_google():
@@ -52,79 +55,72 @@ def conectar_google():
         return gspread.authorize(creds)
     return None
 
-# --- CARGA DE DATOS ---
-TASA_BS = obtener_tasa_bcv()
+# --- CARGA Y PROCESAMIENTO ---
+TASA_BCV = obtener_tasa_bcv()
+client = conectar_google()
+
 try:
-    client = conectar_google()
+    # Cargamos datos
     df = pd.DataFrame(client.open("Pillalo_Data").sheet1.get_all_records())
+    # Asegurar que las columnas existen
+    for col in ['Producto', 'Tienda', 'Zona', 'Precio', 'WhatsApp', 'Categoria', 'Pago', 'Calificacion', 'Foto']:
+        if col not in df.columns: df[col] = "N/A"
 except:
     df = pd.DataFrame()
 
-# --- INTERFAZ PRINCIPAL ---
-st.title("⚡ Píllalo Maracaibo")
+# --- BARRA LATERAL (Sidebar) ---
+with st.sidebar:
+    st.markdown("<h1 style='color: #1E40AF;'>⚡ Píllalo</h1>", unsafe_allow_html=True)
+    st.metric("Tasa BCV", f"{TASA_BCV:.2f} Bs.")
+    st.divider()
+    
+    st.subheader("🔍 Filtros Avanzados")
+    buscar = st.text_input("Buscar producto...", placeholder="Ej: Café")
+    
+    zonas = ["Todas"] + sorted(df['Zona'].unique().tolist()) if not df.empty else ["Todas"]
+    zona_sel = st.selectbox("📍 Sector", zonas)
+    
+    precio_max = st.slider("💰 Presupuesto máx ($)", 0.0, 500.0, 100.0)
 
+# --- CUERPO PRINCIPAL ---
 if not df.empty:
-    # --- BARRA LATERAL (FILTROS) ---
-    with st.sidebar:
-        st.header("🔍 Filtros")
-        
-        # Filtro de Búsqueda
-        buscar = st.text_input("¿Qué buscáis?", placeholder="Ej: Harina...")
-        
-        # Filtro por Zona
-        zonas_disponibles = ["Todas"] + sorted(df['Zona'].unique().tolist())
-        zona_sel = st.selectbox("📍 Por Zona", zonas_disponibles)
-        
-        # Filtro por Precio (Slider)
-        precio_max = float(df['Precio'].max())
-        rango_precio = st.slider("💰 Rango de Precio ($)", 0.0, precio_max, (0.0, precio_max))
-        
-        # Filtro por Calificación
-        min_rating = st.slider("⭐ Calificación mínima", 1, 5, 1)
-
-    # --- LÓGICA DE FILTRADO ---
-    mask = (df['Precio'] >= rango_precio[0]) & (df['Precio'] <= rango_precio[1])
+    # 1. Menú de Categorías (Pestañas)
+    todas_cats = ["Todos"] + sorted(df['Categoria'].unique().tolist())
+    cat_seleccionada = st.tabs(todas_cats)
     
-    if buscar:
-        mask &= df['Producto'].str.contains(buscar, case=False, na=False)
-    if zona_sel != "Todas":
-        mask &= (df['Zona'] == zona_sel)
-    if 'Calificacion' in df.columns:
-        mask &= (df['Calificacion'] >= min_rating)
-        
-    df_filtrado = df[mask].iloc[::-1] # Mostrar más nuevos primero
-
-    # --- MOSTRAR RESULTADOS ---
-    st.write(f"Se pillaron **{len(df_filtrado)}** productos")
-    
-    # Grid de 2 columnas para que quepa más en pantalla
-    cols = st.columns(2)
-    for i, (_, row) in enumerate(df_filtrado.iterrows()):
-        with cols[i % 2]:
-            # Formatear calificación
-            estrellas = "⭐" * int(row.get('Calificacion', 5))
+    # Lógica de filtrado
+    for i, tab in enumerate(cat_seleccionada):
+        with tab:
+            categoria_actual = todas_cats[i]
             
-            st.markdown(f"""
-            <div class="product-card">
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 14px; color: #1e40af; font-weight: bold;">{row['Tienda']}</span>
-                    <span class="rating-star">{estrellas}</span>
-                </div>
-                <h3 style="margin: 5px 0;">{row['Producto']}</h3>
-                <p style="color: #64748b; font-size: 13px; margin-bottom: 10px;">📍 {row['Zona']}</p>
-                <div style="margin-bottom: 10px;">
-                    <span class="badge-pago">💳 {row.get('Pago', 'Efectivo/Pago Móvil')}</span>
-                </div>
-                <div style="display: flex; align-items: baseline; gap: 10px;">
-                    <span style="font-size: 22px; font-weight: bold; color: #16a34a;">${row['Precio']}</span>
-                    <span style="font-size: 14px; color: #94a3b8;">({row['Precio']*TASA_BS:.2f} Bs.)</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Filtrar el DataFrame
+            df_final = df.copy()
+            if categoria_actual != "Todos":
+                df_final = df_final[df_final['Categoria'] == categoria_actual]
+            if buscar:
+                df_final = df_final[df_final['Producto'].str.contains(buscar, case=False, na=False)]
+            if zona_sel != "Todas":
+                df_final = df_final[df_final['Zona'] == zona_sel]
             
-            link_ws = f"https://wa.me/{row['WhatsApp']}?text=Hola, vi *{row['Producto']}* en Píllalo."
-            st.link_button(f"Preguntar en {row['Tienda']}", link_ws, use_container_width=True)
-            st.write("")
-
-else:
-    st.info("Carga datos en el Excel para empezar.")
+            df_final = df_final[df_final['Precio'].astype(float) <= precio_max]
+            
+            # Mostrar Resultados en Grid
+            if df_final.empty:
+                st.info("No pillamos nada con esos filtros. ¡Prueba otra combinación!")
+            else:
+                # Ordenar por los más nuevos
+                df_final = df_final.iloc[::-1]
+                
+                # Crear columnas para las tarjetas
+                cols = st.columns([1, 1], gap="medium") # 2 columnas para móvil y PC
+                
+                for idx, row in enumerate(df_final.iterrows()):
+                    with cols[idx % 2]:
+                        # Contenedor de la tarjeta
+                        st.markdown(f"""
+                        <div class="product-card">
+                            <img src="{row[1]['Foto'] if row[1]['Foto'] != 'N/A' else 'https://via.placeholder.com/300?text=Sin+Foto'}" 
+                                 style="width:100%; height:180px; object-fit: cover; border-radius: 10px; margin-bottom:10px;">
+                            <span class="category-badge">{row[1]['Categoria']}</span>
+                            <h3 style="margin: 10px 0 5px 0; font-size: 18px;">{row[1]['Producto']}</h3>
+                            <p style="color: #6b7280; font-size: 13px; margin: 0;">🏪 {row[1]['Tienda']}</p>
