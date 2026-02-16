@@ -45,7 +45,7 @@ def obtener_tasa_bcv():
         soup = BeautifulSoup(response.text, 'html.parser')
         tasa = soup.find("div", id="dolar").find("strong").text.strip()
         return float(tasa.replace(',', '.'))
-    except: return 48.50 # Tasa de seguridad
+    except: return 48.50 
 
 @st.cache_resource
 def conectar_google():
@@ -60,41 +60,33 @@ TASA_BCV = obtener_tasa_bcv()
 client = conectar_google()
 
 try:
-    # Cargamos datos
     df = pd.DataFrame(client.open("Pillalo_Data").sheet1.get_all_records())
-    # Asegurar que las columnas existen
     for col in ['Producto', 'Tienda', 'Zona', 'Precio', 'WhatsApp', 'Categoria', 'Pago', 'Calificacion', 'Foto']:
         if col not in df.columns: df[col] = "N/A"
 except:
     df = pd.DataFrame()
 
-# --- BARRA LATERAL (Sidebar) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.markdown("<h1 style='color: #1E40AF;'>⚡ Píllalo</h1>", unsafe_allow_html=True)
     st.metric("Tasa BCV", f"{TASA_BCV:.2f} Bs.")
     st.divider()
-    
-    st.subheader("🔍 Filtros Avanzados")
+    st.subheader("🔍 Filtros")
     buscar = st.text_input("Buscar producto...", placeholder="Ej: Café")
-    
     zonas = ["Todas"] + sorted(df['Zona'].unique().tolist()) if not df.empty else ["Todas"]
     zona_sel = st.selectbox("📍 Sector", zonas)
-    
     precio_max = st.slider("💰 Presupuesto máx ($)", 0.0, 500.0, 100.0)
 
 # --- CUERPO PRINCIPAL ---
 if not df.empty:
-    # 1. Menú de Categorías (Pestañas)
     todas_cats = ["Todos"] + sorted(df['Categoria'].unique().tolist())
-    cat_seleccionada = st.tabs(todas_cats)
+    tabs = st.tabs(todas_cats)
     
-    # Lógica de filtrado
-    for i, tab in enumerate(cat_seleccionada):
+    for i, tab in enumerate(tabs):
         with tab:
             categoria_actual = todas_cats[i]
-            
-            # Filtrar el DataFrame
             df_final = df.copy()
+            
             if categoria_actual != "Todos":
                 df_final = df_final[df_final['Categoria'] == categoria_actual]
             if buscar:
@@ -104,23 +96,36 @@ if not df.empty:
             
             df_final = df_final[df_final['Precio'].astype(float) <= precio_max]
             
-            # Mostrar Resultados en Grid
             if df_final.empty:
-                st.info("No pillamos nada con esos filtros. ¡Prueba otra combinación!")
+                st.info("No pillamos nada con esos filtros.")
             else:
-                # Ordenar por los más nuevos
                 df_final = df_final.iloc[::-1]
+                cols = st.columns(2, gap="medium")
                 
-                # Crear columnas para las tarjetas
-                cols = st.columns([1, 1], gap="medium") # 2 columnas para móvil y PC
-                
-                for idx, row in enumerate(df_final.iterrows()):
+                for idx, (index_row, row) in enumerate(df_final.iterrows()):
                     with cols[idx % 2]:
-                        # Contenedor de la tarjeta
+                        foto_url = str(row['Foto']) if str(row['Foto']) != "N/A" and str(row['Foto']) != "" else "https://via.placeholder.com/300?text=Pillalo"
+                        
+                        # BLOQUE HTML CORREGIDO
                         st.markdown(f"""
                         <div class="product-card">
-                            <img src="{row[1]['Foto'] if row[1]['Foto'] != 'N/A' else 'https://via.placeholder.com/300?text=Sin+Foto'}" 
-                                 style="width:100%; height:180px; object-fit: cover; border-radius: 10px; margin-bottom:10px;">
-                            <span class="category-badge">{row[1]['Categoria']}</span>
-                            <h3 style="margin: 10px 0 5px 0; font-size: 18px;">{row[1]['Producto']}</h3>
-                            <p style="color: #6b7280; font-size: 13px; margin: 0;">🏪 {row[1]['Tienda']}</p>
+                            <img src="{foto_url}" style="width:100%; height:180px; object-fit: cover; border-radius: 10px; margin-bottom:10px;">
+                            <span class="category-badge">{row['Categoria']}</span>
+                            <h3 style="margin: 10px 0 5px 0; font-size: 18px;">{row['Producto']}</h3>
+                            <p style="color: #6b7280; font-size: 13px; margin: 0;">🏪 {row['Tienda']} | 📍 {row['Zona']}</p>
+                            <div style="margin: 15px 0;">
+                                <span class="price-usd">${float(row['Precio']):.2f}</span>
+                                <span class="price-bs">/ {float(row['Precio']) * TASA_BCV:.2f} Bs.</span>
+                            </div>
+                            <div style="font-size: 12px; color: #4b5563; margin-bottom: 10px;">
+                                ⭐ {row['Calificacion']} | 💳 {row['Pago']}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        msg = f"Hola! Vi el producto {row['Producto']} en Pillalo."
+                        st.link_button(f"📲 Contactar", f"https://wa.me/{row['WhatsApp']}?text={msg}")
+                        st.write("") 
+
+else:
+    st.warning("⚠️ No hay datos cargados aún.")
