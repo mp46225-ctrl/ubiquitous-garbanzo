@@ -103,11 +103,20 @@ if st.session_state["perfil"] == "Invitado":
                     else: st.image("https://via.placeholder.com/150?text=Sin+Foto", width=180)
                 with c2:
                     st.markdown(f"### {row['Producto']}")
-                    p_usd = float(str(row['Precio']).replace(',', '.'))
+                    
+                    # --- FILTRO DE SEGURIDAD PARA PRECIOS ---
+                    try:
+                        # Limpiamos el valor de cualquier cosa que no sea número o punto
+                        valor_limpio = str(row.get('Precio', '0.00')).replace(',', '.')
+                        p_usd = float(valor_limpio)
+                    except ValueError:
+                        p_usd = 0.00  # Si hay error (ej: una celda vacía), ponemos 0.00
+                    
                     p_bs = p_usd * tasa_bcv
+                    
+                    # Mostramos con tu formato de punto decimal
                     st.markdown(f"## 💰 ${p_usd:.2f} | <span style='color:#00D1FF'>{p_bs:.2f} Bs.</span>", unsafe_allow_html=True)
                     st.write(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
-                st.divider()
 
 # --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
