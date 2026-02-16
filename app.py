@@ -6,6 +6,68 @@ import requests
 from bs4 import BeautifulSoup
 import urllib3
 
+# 1. CONFIGURACIÓN INICIAL (Siempre al principio)
+st.set_page_config(page_title="Píllalo App", layout="wide")
+
+# Inicializamos la sesión si no existe
+if "logueado" not in st.session_state:
+    st.session_state["logueado"] = False
+    st.session_state["perfil"] = "Invitado"
+
+# 2. FUNCIÓN DE LOGIN (En la barra lateral)
+def login():
+    with st.sidebar:
+        st.title("🔑 Acceso")
+        user = st.text_input("Usuario")
+        password = st.text_input("Contraseña", type="password")
+        
+        if st.button("Entrar"):
+            # Aquí puedes luego conectar con Google Sheets, por ahora usemos claves fijas:
+            if user == "admin" and password == "pilla_ceo":
+                st.session_state["logueado"] = True
+                st.session_state["perfil"] = "Admin"
+                st.rerun()
+            elif user == "empresa" and password == "pilla_socio":
+                st.session_state["logueado"] = True
+                st.session_state["perfil"] = "Empresa"
+                st.rerun()
+            else:
+                st.error("Credenciales incorrectas")
+
+# 3. LÓGICA DE NAVEGACIÓN
+if not st.session_state["logueado"]:
+    # --- VISTA PÚBLICA (Lo que ve el cliente) ---
+    login() # Mostramos el formulario de login en el sidebar
+    st.title("🔍 Píllalo - Ofertas del Día")
+    
+    # [PEGA AQUÍ TU CÓDIGO ACTUAL: El que carga el Excel y muestra las tarjetas de productos]
+    st.info("Loguéate como empresa para subir inventario masivo.")
+
+else:
+    # --- VISTAS PRIVADAS ---
+    perfil = st.session_state["perfil"]
+    
+    with st.sidebar:
+        st.write(f"Conectado como: **{perfil}**")
+        if st.button("Cerrar Sesión"):
+            st.session_state["logueado"] = False
+            st.session_state["perfil"] = "Invitado"
+            st.rerun()
+
+    if perfil == "Admin":
+        st.title("👨‍✈️ Panel de Control CEO")
+        # [PEGA AQUÍ EL CÓDIGO DE TUS GRÁFICAS Y ESTADÍSTICAS]
+        st.write("Bienvenido al centro de mando.")
+
+    elif perfil == "Empresa":
+        st.title("🏢 Portal para Empresas")
+        st.write("Desde aquí podrás subir tus archivos Excel pronto.")
+        # [AQUÍ IRÁ EL FUTURO CARGADOR MASIVO]
+
+# 4. FOOTER (Fuera de los if, se ve en todas las pantallas)
+st.divider()
+st.caption("Píllalo 2026 - El petróleo de la data en Maracaibo.")
+
 # --- CONFIGURACIÓN E INTERFAZ ---
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 st.set_page_config(page_title="Píllalo | Catálogo de Ahorros", page_icon="⚡", layout="wide")
