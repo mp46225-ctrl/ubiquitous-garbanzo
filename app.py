@@ -12,12 +12,22 @@ st.set_page_config(page_title="Píllalo - Admin & Business", layout="wide")
 
 def conectar_google_sheets():
     try:
-        # Cargamos credenciales desde Streamlit Secrets (EVITA SUBIR EL JSON A GITHUB)
-        creds_dict = json.loads(st.secrets["gcp_service_account"])
+        # En Streamlit Cloud, st.secrets ya se comporta como un diccionario
+        # Si lo guardaste como [gcp_service_account], accedemos directo
+        creds_info = st.secrets["gcp_service_account"]
+        
+        # Si por alguna razón sigue llegando como string, lo convertimos, 
+        # si no, lo usamos directo
+        if isinstance(creds_info, str):
+            creds_info = json.loads(creds_info)
+        
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        
+        # Usamos from_json_keyfile_dict que es para diccionarios
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
         client = gspread.authorize(creds)
-        spreadsheet = client.open("Pillalo_Data") 
+        
+        spreadsheet = client.open("Pillalo_Data")
         return spreadsheet
     except Exception as e:
         st.error(f"Error de conexión: {e}")
