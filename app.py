@@ -6,127 +6,125 @@ import requests
 from bs4 import BeautifulSoup
 import urllib3
 
-# Desactivar advertencias de certificados del BCV
+# Configuración inicial
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+st.set_page_config(page_title="Píllalo | El Rayo del Ahorro", page_icon="⚡", layout="wide")
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Píllalo | El Rayo del Ahorro", page_icon="⚡", layout="centered")
-
-# --- ESTILO PERSONALIZADO (CSS) ---
+# --- ESTILOS CSS MEJORADOS ---
 st.markdown("""
     <style>
-    .main { background-color: #f8fafc; }
-    .stTextInput { border-radius: 20px; }
     .product-card {
         background-color: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        margin-bottom: 20px;
-        border-left: 5px solid #1E40AF;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        border: 1px solid #e2e8f0;
     }
-    .price-tag {
-        color: #16a34a;
-        font-weight: bold;
-        font-size: 24px;
+    .badge-pago {
+        background-color: #f1f5f9;
+        color: #475569;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        margin-right: 5px;
     }
-    .bs-price {
-        color: #64748b;
-        font-size: 16px;
-    }
-    .store-info {
-        color: #1e40af;
-        font-weight: 500;
-    }
+    .rating-star { color: #f59e0b; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNCIÓN TASA BCV ---
+# --- FUNCIONES DE APOYO (BCV Y GOOGLE) ---
 def obtener_tasa_bcv():
     try:
         url = "https://www.bcv.org.ve/"
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
-        tasa_dolar = soup.find("div", id="dolar").find("strong").text.strip()
-        return float(tasa_dolar.replace(',', '.'))
-    except:
-        return 48.50 # Tasa de respaldo
+        tasa = soup.find("div", id="dolar").find("strong").text.strip()
+        return float(tasa.replace(',', '.'))
+    except: return 48.50
 
-@st.cache_data(ttl=3600)
-def get_tasa_actualizada():
-    return obtener_tasa_bcv()
-
-TASA_BS = get_tasa_actualizada()
-
-# --- CONEXIÓN GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_google():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     if "gcp_service_account" in st.secrets:
-        info_llaves = dict(st.secrets["gcp_service_account"])
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(info_llaves, scope)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
         return gspread.authorize(creds)
     return None
 
 # --- CARGA DE DATOS ---
+TASA_BS = obtener_tasa_bcv()
 try:
     client = conectar_google()
-    sheet = client.open("Pillalo_Data").sheet1
-    
-    @st.cache_data(ttl=60)
-    def cargar_datos():
-        data = sheet.get_all_records()
-        return pd.DataFrame(data)
-    df = cargar_datos()
-except Exception as e:
-    st.error(f"Error: {e}")
+    df = pd.DataFrame(client.open("Pillalo_Data").sheet1.get_all_records())
+except:
     df = pd.DataFrame()
 
-# --- INTERFAZ DE USUARIO ---
-st.markdown("<h1 style='text-align: center; color: #1E40AF;'>⚡ Píllalo</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #64748b;'>¡El rayo del ahorro en Maracaibo! ⛈️</p>", unsafe_allow_html=True)
-
-# Sidebar
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3067/3067451.png", width=100)
-    st.metric(label="Tasa BCV", value=f"{TASA_BS:.2f} Bs.")
-    st.info("💡 Los precios se actualizan cada minuto.")
-
-# Buscador
-busqueda = st.text_input("", placeholder="🔍 ¿Qué buscáis hoy? (Harina, Café, Batería...)")
+# --- INTERFAZ PRINCIPAL ---
+st.title("⚡ Píllalo Maracaibo")
 
 if not df.empty:
-    # Filtrar resultados
-    if busqueda:
-        resultados = df[df['Producto'].str.contains(busqueda, case=False, na=False)]
-    else:
-        # Si no hay búsqueda, mostrar los más recientes arriba
-        resultados = df.iloc[::-1].head(10)
+    # --- BARRA LATERAL (FILTROS) ---
+    with st.sidebar:
+        st.header("🔍 Filtros")
+        
+        # Filtro de Búsqueda
+        buscar = st.text_input("¿Qué buscáis?", placeholder="Ej: Harina...")
+        
+        # Filtro por Zona
+        zonas_disponibles = ["Todas"] + sorted(df['Zona'].unique().tolist())
+        zona_sel = st.selectbox("📍 Por Zona", zonas_disponibles)
+        
+        # Filtro por Precio (Slider)
+        precio_max = float(df['Precio'].max())
+        rango_precio = st.slider("💰 Rango de Precio ($)", 0.0, precio_max, (0.0, precio_max))
+        
+        # Filtro por Calificación
+        min_rating = st.slider("⭐ Calificación mínima", 1, 5, 1)
 
-    if not resultados.empty:
-        for _, row in resultados.iterrows():
-            # Crear la tarjeta visual
-            with st.container():
-                st.markdown(f"""
-                <div class="product-card">
-                    <span style='color: #64748b; font-size: 12px; text-transform: uppercase;'>{row.get('Categoria', 'General')}</span>
-                    <h3 style='margin: 0; color: #0f172a;'>{row['Producto']}</h3>
-                    <p class="store-info">🏪 {row['Tienda']} | 📍 {row['Zona']}</p>
-                    <div style='display: flex; justify-content: space-between; align-items: center;'>
-                        <div>
-                            <span class="price-tag">${row['Precio']}</span><br>
-                            <span class="bs-price">≈ {float(row['Precio']) * TASA_BS:.2f} Bs.</span>
-                        </div>
-                    </div>
+    # --- LÓGICA DE FILTRADO ---
+    mask = (df['Precio'] >= rango_precio[0]) & (df['Precio'] <= rango_precio[1])
+    
+    if buscar:
+        mask &= df['Producto'].str.contains(buscar, case=False, na=False)
+    if zona_sel != "Todas":
+        mask &= (df['Zona'] == zona_sel)
+    if 'Calificacion' in df.columns:
+        mask &= (df['Calificacion'] >= min_rating)
+        
+    df_filtrado = df[mask].iloc[::-1] # Mostrar más nuevos primero
+
+    # --- MOSTRAR RESULTADOS ---
+    st.write(f"Se pillaron **{len(df_filtrado)}** productos")
+    
+    # Grid de 2 columnas para que quepa más en pantalla
+    cols = st.columns(2)
+    for i, (_, row) in enumerate(df_filtrado.iterrows()):
+        with cols[i % 2]:
+            # Formatear calificación
+            estrellas = "⭐" * int(row.get('Calificacion', 5))
+            
+            st.markdown(f"""
+            <div class="product-card">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-size: 14px; color: #1e40af; font-weight: bold;">{row['Tienda']}</span>
+                    <span class="rating-star">{estrellas}</span>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                # Botón de WhatsApp
-                link_ws = f"https://wa.me/{row['WhatsApp']}?text=Hola, vi el producto *{row['Producto']}* en Píllalo. ¿Sigue disponible?"
-                st.link_button(f"📲 Contactar al vendedor", link_ws, use_container_width=True)
-                st.markdown("<br>", unsafe_allow_html=True)
-    else:
-        st.warning("No pillamos nada con ese nombre. ¡Intenta con otra palabra!")
+                <h3 style="margin: 5px 0;">{row['Producto']}</h3>
+                <p style="color: #64748b; font-size: 13px; margin-bottom: 10px;">📍 {row['Zona']}</p>
+                <div style="margin-bottom: 10px;">
+                    <span class="badge-pago">💳 {row.get('Pago', 'Efectivo/Pago Móvil')}</span>
+                </div>
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                    <span style="font-size: 22px; font-weight: bold; color: #16a34a;">${row['Precio']}</span>
+                    <span style="font-size: 14px; color: #94a3b8;">({row['Precio']*TASA_BS:.2f} Bs.)</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            link_ws = f"https://wa.me/{row['WhatsApp']}?text=Hola, vi *{row['Producto']}* en Píllalo."
+            st.link_button(f"Preguntar en {row['Tienda']}", link_ws, use_container_width=True)
+            st.write("")
+
 else:
-    st.warning("Aún no hay productos registrados. ¡Usa el bot para cargar el primero!")
+    st.info("Carga datos en el Excel para empezar.")
