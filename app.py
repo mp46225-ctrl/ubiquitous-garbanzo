@@ -43,7 +43,15 @@ st.markdown("<h1 style='text-align: center; color: #1E40AF;'>⚡ Píllalo</h1>",
 st.write("---")
 
 # Tasa de cambio (puedes hacer que esto también se lea del Excel luego)
-TASA_BS = 45.50 
+# --- TASA DINÁMICA ---
+@st.cache_data(ttl=3600) # La tasa se guarda por 1 hora para no saturar al BCV
+def get_tasa_actualizada():
+    return obtener_tasa_bcv()
+
+TASA_BS = get_tasa_actualizada()
+
+# Ahora en tu interfaz puedes poner un aviso:
+st.sidebar.metric(label="Tasa BCV hoy", value=f"{TASA_BS} Bs/USD") 
 
 busqueda = st.text_input("🔍 ¿Qué buscáis hoy en Maracaibo?", placeholder="Ej: Harina, Batería, Aceite...")
 
