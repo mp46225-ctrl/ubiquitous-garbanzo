@@ -130,12 +130,31 @@ elif st.session_state["perfil"] == "Empresa":
     t1, t2, t3 = st.tabs(["📦 Mis Productos", "📤 Carga & Tutorial", "🔥 Marketing"])
 
     with t1:
-        st.subheader("Tu Inventario")
+        st.subheader("📦 Gestión de tu Inventario")
         if sheet:
+            # Traemos todos los datos de la hoja
             df_e = pd.DataFrame(sheet.get_all_records())
-            # Filtra por el nombre de la empresa para que no vean lo de otros
-            mis_datos = df_e[df_e['Tienda'].str.upper() == st.session_state["user_name"].upper()]
-            st.dataframe(mis_datos, use_container_width=True)
+            
+            if not df_e.empty:
+                # Obtenemos el usuario actual (ej: 'empresa')
+                usuario_actual = st.session_state["user_name"].strip().upper()
+                
+                # Filtramos: Buscamos donde la columna 'Tienda' coincida con el usuario
+                # Usamos .astype(str) por si hay números y .str.upper() para que no fallen las mayúsculas
+                mis_datos = df_e[df_e['Tienda'].astype(str).str.upper() == usuario_actual]
+                
+                if not mis_datos.empty:
+                    st.write(f"✅ Mostrando **{len(mis_datos)}** productos registrados bajo el nombre: `{st.session_state['user_name']}`")
+                    st.dataframe(mis_datos, use_container_width=True)
+                else:
+                    st.warning(f"⚠️ No se encontraron productos para la tienda: **{st.session_state['user_name']}**")
+                    st.info("💡 Asegúrate de que en tu archivo Excel, la columna **'Tienda'** diga exactamente igual que tu usuario de acceso.")
+                    
+                    # Opcional: Mostrar una lista de las tiendas que SÍ existen en la base de datos
+                    tiendas_existentes = df_e['Tienda'].unique()
+                    st.write("Tiendas detectadas actualmente en el sistema:", list(tiendas_existentes))
+            else:
+                st.info("La base de datos está vacía por ahora.")
 
     with t2:
         st.subheader("🚀 Guía de Carga Rápida")
@@ -175,18 +194,85 @@ elif st.session_state["perfil"] == "Empresa":
             st.success("¡Productos publicados con éxito!")
 
     with t3:
-        st.subheader("🚀 Impulsa tu Negocio")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write("🔥 **Oferta Flash**")
-            st.caption("Destaca un producto por 24h.")
-            if st.button("Solicitar Flash"):
-                st.toast("Enviado al Admin")
-        with c2:
-            st.write("💎 **Plan Premium**")
-            st.caption("Aparece primero en las búsquedas.")
-            if st.button("Ver Planes"):
-                st.info("Contacto: 0412-PILLALO")
+        st.subheader("🚀 Píllalo Boost - Impulsa tus Ventas")
+        st.write("Elige cómo quieres destacar en la plataforma para vender más rápido.")
+        
+        # --- SECCIÓN DE PLANES PREMIUM ---
+        st.markdown("### 💎 Planes Premium")
+        col_bronze, col_silver, col_gold = st.columns(3)
+        
+        with col_bronze:
+            st.info("### 🥉 BRONCE")
+            st.markdown("""
+            **Costo: $5 / mes**
+            * Sello de 'Tienda Verificada'.
+            * Apareces arriba de los 'Invitados'.
+            * Soporte vía WhatsApp.
+            """)
+            if st.button("Elegir Bronce", key="plan_b"):
+                st.session_state["plan_elegido"] = "BRONCE"
+                st.toast("Has seleccionado el Plan Bronce")
+
+        with col_silver:
+            st.success("### 🥈 PLATA")
+            st.markdown("""
+            **Costo: $15 / mes**
+            * Todo lo del plan Bronce.
+            * **3 Ofertas Flash** al mes.
+            * Logo de tu tienda en la vitrina.
+            """)
+            if st.button("Elegir Plata", key="plan_s"):
+                st.session_state["plan_elegido"] = "PLATA"
+                st.toast("Has seleccionado el Plan Plata")
+
+        with col_gold:
+            st.warning("### 🥇 ORO")
+            st.markdown("""
+            **Costo: $40 / mes**
+            * Todo lo del plan Plata.
+            * **Ofertas Flash Ilimitadas**.
+            * Banner publicitario en el inicio.
+            * Analítica de clics semanal.
+            """)
+            if st.button("Elegir Oro", key="plan_g"):
+                st.session_state["plan_elegido"] = "ORO"
+                st.toast("Has seleccionado el Plan Oro")
+
+        st.divider()
+
+        # --- SECCIÓN DE OFERTAS FLASH ---
+        col_flash, col_pago = st.columns(2)
+        
+        with col_flash:
+            st.markdown("### 🔥 Activar Oferta Flash")
+            st.caption("Destaca un producto con un cronómetro y precio especial por 24h.")
+            # Solo dejamos elegir si tiene productos
+            if not mis_datos.empty:
+                prod_f = st.selectbox("Selecciona Producto:", mis_datos['Producto'].unique())
+                desc = st.slider("Descuento a aplicar (%)", 5, 50, 20)
+                if st.button("🚀 Lanzar Oferta Flash"):
+                    st.success(f"Solicitud enviada para poner {prod_f} en Oferta Flash.")
+                    registrar_estadistica("MARKETING_FLASH", f"{st.session_state['user_name']} solicita flash para {prod_f}")
+            else:
+                st.warning("Carga productos primero para activar ofertas.")
+
+        with col_pago:
+            st.markdown("### 💳 Confirmar suscripción")
+            plan_sel = st.session_state.get("plan_elegido", "Ninguno")
+            st.write(f"Plan seleccionado: **{plan_sel}**")
+            
+            if plan_sel != "Ninguno":
+                metodo = st.selectbox("Método de Pago:", ["Pago Móvil", "Zelle", "Efectivo (Oficina)", "Binance P2P"])
+                ref = st.text_input("Número de Referencia / Comprobante:")
+                
+                if st.button("Confirmar Pago y Activar 🚀"):
+                    if ref:
+                        st.balloons()
+                        st.success("¡Recibido! El equipo de Píllalo verificará el pago y activará tus beneficios en breve.")
+                        registrar_estadistica("PAGO_PREMIUM", f"{st.session_state['user_name']} pagó {plan_sel} - Ref: {ref}")
+                    else:
+                        st.error("Por favor ingresa el número de referencia.")
+
 
 st.divider()
 st.caption(f"Píllalo 2026 - Maracaibo | Tasa BCV: {tasa_bcv} Bs.")
