@@ -6,41 +6,68 @@ import requests
 from bs4 import BeautifulSoup
 import urllib3
 
-# Desactivar advertencias de certificados (el BCV a veces tiene problemas con eso)
+# Desactivar advertencias de certificados del BCV
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Píllalo | El Rayo del Ahorro", page_icon="⚡")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Píllalo | El Rayo del Ahorro", page_icon="⚡", layout="centered")
 
-# --- FUNCIÓN PARA EL BCV (ESTO ES LO QUE FALTABA) ---
+# --- ESTILO PERSONALIZADO (CSS) ---
+st.markdown("""
+    <style>
+    .main { background-color: #f8fafc; }
+    .stTextInput { border-radius: 20px; }
+    .product-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        border-left: 5px solid #1E40AF;
+    }
+    .price-tag {
+        color: #16a34a;
+        font-weight: bold;
+        font-size: 24px;
+    }
+    .bs-price {
+        color: #64748b;
+        font-size: 16px;
+    }
+    .store-info {
+        color: #1e40af;
+        font-weight: 500;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- FUNCIÓN TASA BCV ---
 def obtener_tasa_bcv():
     try:
         url = "https://www.bcv.org.ve/"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        # Intentamos conectar con el BCV
-        response = requests.get(url, headers=headers, verify=False, timeout=15)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Buscamos el valor del dólar en su tabla
         tasa_dolar = soup.find("div", id="dolar").find("strong").text.strip()
-        tasa_limpia = float(tasa_dolar.replace(',', '.'))
-        return tasa_limpia
-    except Exception as e:
-        # Si el BCV no responde, devolvemos una tasa fija para que la app no explote
-        return 45.50
+        return float(tasa_dolar.replace(',', '.'))
+    except:
+        return 48.50 # Tasa de respaldo
 
-# --- FUNCIÓN PARA CONECTAR GOOGLE (NUBE O LOCAL) ---
+@st.cache_data(ttl=3600)
+def get_tasa_actualizada():
+    return obtener_tasa_bcv()
+
+TASA_BS = get_tasa_actualizada()
+
+# --- CONEXIÓN GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_google():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     if "gcp_service_account" in st.secrets:
         info_llaves = dict(st.secrets["gcp_service_account"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(info_llaves, scope)
-    else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name('credenciales.json', scope)
-    return gspread.authorize(creds)
+        return gspread.authorize(creds)
+    return None
 
 # --- CARGA DE DATOS ---
 try:
@@ -51,50 +78,55 @@ try:
     def cargar_datos():
         data = sheet.get_all_records()
         return pd.DataFrame(data)
-
     df = cargar_datos()
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error: {e}")
     df = pd.DataFrame()
 
-# --- INTERFAZ ---
+# --- INTERFAZ DE USUARIO ---
 st.markdown("<h1 style='text-align: center; color: #1E40AF;'>⚡ Píllalo</h1>", unsafe_allow_html=True)
-st.write("---")
+st.markdown("<p style='text-align: center; color: #64748b;'>¡El rayo del ahorro en Maracaibo! ⛈️</p>", unsafe_allow_html=True)
 
-# --- TASA DINÁMICA ---
-@st.cache_data(ttl=3600)
-def get_tasa_actualizada():
-    return obtener_tasa_bcv()
+# Sidebar
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3067/3067451.png", width=100)
+    st.metric(label="Tasa BCV", value=f"{TASA_BS:.2f} Bs.")
+    st.info("💡 Los precios se actualizan cada minuto.")
 
-TASA_BS = get_tasa_actualizada()
-
-# Sidebar con la tasa
-st.sidebar.metric(label="Tasa BCV hoy", value=f"{TASA_BS:.2f} Bs/USD") 
-
-busqueda = st.text_input("🔍 ¿Qué buscáis hoy en Maracaibo?", placeholder="Ej: Harina, Batería, Aceite...")
+# Buscador
+busqueda = st.text_input("", placeholder="🔍 ¿Qué buscáis hoy? (Harina, Café, Batería...)")
 
 if not df.empty:
+    # Filtrar resultados
     if busqueda:
         resultados = df[df['Producto'].str.contains(busqueda, case=False, na=False)]
     else:
-        resultados = df.tail(10)
+        # Si no hay búsqueda, mostrar los más recientes arriba
+        resultados = df.iloc[::-1].head(10)
 
     if not resultados.empty:
         for _, row in resultados.iterrows():
+            # Crear la tarjeta visual
             with st.container():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.subheader(row['Producto'])
-                    st.caption(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
-                with col2:
-                    st.markdown(f"### ${row['Precio']}")
-                    # Aquí hacemos el cálculo con la tasa del BCV
-                    st.caption(f"{float(row['Precio']) * TASA_BS:.2f} Bs.")
+                st.markdown(f"""
+                <div class="product-card">
+                    <span style='color: #64748b; font-size: 12px; text-transform: uppercase;'>{row.get('Categoria', 'General')}</span>
+                    <h3 style='margin: 0; color: #0f172a;'>{row['Producto']}</h3>
+                    <p class="store-info">🏪 {row['Tienda']} | 📍 {row['Zona']}</p>
+                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                        <div>
+                            <span class="price-tag">${row['Precio']}</span><br>
+                            <span class="bs-price">≈ {float(row['Precio']) * TASA_BS:.2f} Bs.</span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                link_ws = f"https://wa.me/{row['WhatsApp']}?text=Hola, lo vi en Píllalo"
-                st.link_button("Contactar", link_ws)
-                st.divider()
+                # Botón de WhatsApp
+                link_ws = f"https://wa.me/{row['WhatsApp']}?text=Hola, vi el producto *{row['Producto']}* en Píllalo. ¿Sigue disponible?"
+                st.link_button(f"📲 Contactar al vendedor", link_ws, use_container_width=True)
+                st.markdown("<br>", unsafe_allow_html=True)
     else:
-        st.warning("No pillamos nada con ese nombre.")
+        st.warning("No pillamos nada con ese nombre. ¡Intenta con otra palabra!")
 else:
-    st.info("Esperando datos... Cargá algo desde el Bot de Telegram!")
+    st.warning("Aún no hay productos registrados. ¡Usa el bot para cargar el primero!")
