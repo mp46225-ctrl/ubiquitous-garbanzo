@@ -12,22 +12,17 @@ st.set_page_config(page_title="Píllalo - Admin & Business", layout="wide")
 
 def conectar_google_sheets():
     try:
-        # En Streamlit Cloud, st.secrets ya se comporta como un diccionario
-        # Si lo guardaste como [gcp_service_account], accedemos directo
+        # Cargamos credenciales desde Streamlit Secrets de forma robusta
         creds_info = st.secrets["gcp_service_account"]
         
-        # Si por alguna razón sigue llegando como string, lo convertimos, 
-        # si no, lo usamos directo
+        # Si llega como string lo convertimos, si es AttrDict se usa directo
         if isinstance(creds_info, str):
             creds_info = json.loads(creds_info)
-        
+            
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        
-        # Usamos from_json_keyfile_dict que es para diccionarios
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
         client = gspread.authorize(creds)
-        
-        spreadsheet = client.open("Pillalo_Data")
+        spreadsheet = client.open("Pillalo_Data") 
         return spreadsheet
     except Exception as e:
         st.error(f"Error de conexión: {e}")
@@ -58,7 +53,6 @@ with st.sidebar:
         user = st.text_input("Usuario")
         password = st.text_input("Contraseña", type="password")
         if st.button("Entrar"):
-            # Credenciales de acceso
             if user == "admin" and password == "pilla_ceo":
                 st.session_state["logueado"] = True
                 st.session_state["perfil"] = "Admin"
@@ -94,18 +88,26 @@ if st.session_state["perfil"] == "Invitado":
         if zona_sel:
             df = df[df['Zona'].isin(zona_sel)]
             
-        # Galería de productos
+        # Galería de productos con paracaídas para errores de imagen
         for index, row in df.iterrows():
             with st.container():
                 c1, c2 = st.columns([1, 3])
                 with c1:
-                    foto_url = row.get('Foto', 'https://via.placeholder.com/150')
-                    st.image(foto_url, width=180)
+                    foto_url = row.get('Foto', '')
+                    # Validación de seguridad para la imagen
+                    if foto_url and str(foto_url).startswith('http'):
+                        try:
+                            st.image(foto_url, width=180)
+                        except:
+                            st.image("https://via.placeholder.com/150?text=Error+Imagen", width=180)
+                    else:
+                        st.image("https://via.placeholder.com/150?text=Sin+Foto", width=180)
+                
                 with c2:
                     st.markdown(f"### {row.get('Producto', 'Sin Nombre')}")
-                    # Mostramos precio con PUNTO decimal siempre
-                    precio = str(row.get('Precio', '0.00')).replace(',', '.')
-                    st.markdown(f"💰 **Precio: ${precio}**")
+                    # Limpieza de precio: siempre con punto (.)
+                    precio_val = str(row.get('Precio', '0.00')).replace(',', '.')
+                    st.markdown(f"💰 **Precio: ${precio_val}**")
                     st.write(f"🏪 {row.get('Tienda', 'N/A')} | 📍 {row.get('Zona', 'N/A')}")
                     st.write(f"📞 WhatsApp: {row.get('WhatsApp', 'N/A')}")
                 st.divider()
@@ -128,16 +130,16 @@ elif st.session_state["perfil"] == "Admin":
                 st.write("Top Acciones:")
                 st.bar_chart(df_est['Evento'].value_counts())
         except:
-            st.warning("No hay datos de estadísticas para mostrar todavía.")
+            st.warning("No hay datos de estadísticas suficientes.")
 
 # --- PERFIL: EMPRESA (SOCIOS COMERCIALES) ---
 elif st.session_state["perfil"] == "Empresa":
     st.title("🏢 Portal de Socios - Carga Masiva")
     
-    # Descarga de Plantilla
+    # 1. Descarga de Plantilla
     st.subheader("1. Obtener Plantilla")
     columnas = ["Producto", "Tienda", "Zona", "Precio", "WhatsApp", "Categoria", "Pago", "Calificacion", "Foto"]
-    df_plantilla = pd.DataFrame([["Salsa Roja", "Mi Tienda", "Norte", 4.25, "584121234567", "Víveres", "Efectivo", 5, "URL_FOTO"]], columns=columnas)
+    df_plantilla = pd.DataFrame([["Salsa Roja", "Tienda X", "Norte", 4.25, "584120000000", "Víveres", "Efectivo", 5, "https://link.com/foto.jpg"]], columns=columnas)
     
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -152,9 +154,9 @@ elif st.session_state["perfil"] == "Empresa":
     
     st.divider()
     
-    # Subida de Archivo
+    # 2. Subida de Archivo
     st.subheader("2. Cargar Inventario")
-    archivo = st.file_uploader("Sube tu Excel completado", type=['xlsx'])
+    archivo = st.file_uploader("Sube tu Excel relleno", type=['xlsx'])
     
     if archivo:
         df_up = pd.read_excel(archivo)
@@ -163,19 +165,19 @@ elif st.session_state["perfil"] == "Empresa":
         
         if st.button("🚀 Publicar Inventario"):
             with st.spinner("Procesando datos..."):
-                # Limpieza forzada: Comas por Puntos en el precio
+                # Limpieza: Comas por Puntos en el precio para cumplir tu requerimiento
                 if 'Precio' in df_up.columns:
                     df_up['Precio'] = df_up['Precio'].astype(str).str.replace(',', '.').astype(float)
                 
-                # Sello de tiempo
+                # Sello de tiempo para el historial
                 df_up['Fecha'] = datetime.now().strftime("%d/%m %I:%M %p")
                 
                 # Envío masivo a Google Sheets
                 sheet.append_rows(df_up.values.tolist(), value_input_option='USER_ENTERED')
                 
                 registrar_estadistica("CARGA_MASIVA", f"Empresa cargó {len(df_up)} productos")
-                st.success(f"¡Éxito! {len(df_up)} productos están ahora en línea.")
+                st.success(f"¡Éxito! {len(df_up)} productos publicados.")
 
 # --- FOOTER ---
 st.divider()
-st.caption("Píllalo 2026 - Maracaibo, Zulia. Todos los derechos reservados.")
+st.caption("Píllalo 2026 - Maracaibo, Zulia.")
