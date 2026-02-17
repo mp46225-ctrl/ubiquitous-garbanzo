@@ -117,7 +117,7 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (CARRITO + DESTACADOS + ESCUDO) ---
+# --- PERFIL: INVITADO (CON FICHA TÉCNICA DETALLADA) ---
 if st.session_state["perfil"] == "Invitado":
     if "carrito" not in st.session_state:
         st.session_state["carrito"] = {}
@@ -125,17 +125,21 @@ if st.session_state["perfil"] == "Invitado":
     st.markdown("""
         <style>
         .product-card {
-            background: white; padding: 12px; border-radius: 15px;
-            border: 1px solid #f0f0f0; text-align: center;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 280px;
-            margin-bottom: 10px;
+            background: white; padding: 15px; border-radius: 15px;
+            border: 1px solid #e0e0e0; text-align: left;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.05); height: 440px;
+            margin-bottom: 15px;
         }
         .img-contain {
-            width: 100%; height: 130px; object-fit: contain;
-            margin-bottom: 10px; background: white;
+            width: 100%; height: 140px; object-fit: contain;
+            margin-bottom: 10px; background: #f9f9f9; border-radius: 10px;
         }
-        .price-style { color: #001F3F; font-size: 20px; font-weight: bold; margin-bottom: 0px; }
-        .bcv-style { color: #FF8C00; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
+        .tit-prod { font-size: 16px; font-weight: bold; color: #222; height: 45px; overflow: hidden; line-height: 1.2; }
+        .tienda-tag { font-size: 13px; color: #007bff; font-weight: bold; margin-top: 5px; }
+        .zona-tag { font-size: 12px; color: #666; font-style: italic; }
+        .price-usd { color: #001F3F; font-size: 22px; font-weight: 900; margin-top: 10px; }
+        .price-bs { color: #FF8C00; font-size: 14px; font-weight: bold; }
+        .fecha-upd { font-size: 10px; color: #999; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -148,17 +152,21 @@ if st.session_state["perfil"] == "Invitado":
                 st.warning("⚠️ La vitrina está vacía.")
                 st.stop()
             df = pd.DataFrame(raw_data)
-            if 'Telefono' not in df.columns:
-                df['Telefono'] = "584127522988"
+            
+            # Autocompletar columnas faltantes para evitar errores
+            if 'Telefono' not in df.columns: df['Telefono'] = "584127522988"
+            if 'Zona' not in df.columns: df['Zona'] = "Maracaibo"
+            if 'Actualizado' not in df.columns: df['Actualizado'] = datetime.now().strftime("%d/%m/%y")
+            
         except Exception as e:
             st.error(f"Error: {e}")
             st.stop()
 
-        # 1. BUSCADOR Y CARRITO
+        # 1. BUSCADOR Y GESTIÓN DE CARRITO
         query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
         
         if st.session_state["carrito"]:
-            with st.expander(f"🛒 VER MI PEDIDO ({sum(item['cant'] for item in st.session_state['carrito'].values())} ítems)"):
+            with st.expander(f"🛒 TU PEDIDO ({sum(item['cant'] for item in st.session_state['carrito'].values())} ítems)"):
                 t_usd = 0
                 borrar = []
                 for p, info in st.session_state["carrito"].items():
@@ -183,7 +191,7 @@ if st.session_state["perfil"] == "Invitado":
                     tel_d = list(st.session_state["carrito"].values())[0]['tel']
                     st.markdown(f'<meta http-equiv="refresh" content="0;URL=https://wa.me/{tel_d}?text={urllib.parse.quote(txt)}">', unsafe_allow_html=True)
 
-        # 2. SECCIÓN 🔥 DESTACADOS (RESTAURADA)
+        # 2. SECCIÓN 🔥 DESTACADOS
         df_filtered = df.copy()
         if query:
             df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
@@ -193,7 +201,7 @@ if st.session_state["perfil"] == "Invitado":
             top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
             
             if not top_items.empty:
-                st.markdown("### 🔥 Destacados")
+                st.markdown("### 🔥 Recomendados")
                 cols_top = st.columns([1]*len(top_items) + [4])
                 for i, (idx, row) in enumerate(top_items.iterrows()):
                     with cols_top[i]:
@@ -202,7 +210,7 @@ if st.session_state["perfil"] == "Invitado":
                         st.markdown(f'''
                             <div style="text-align: center; background: white; border-radius: 10px; border: 1px solid #eee; padding: 5px;">
                                 <img src="{row.get('Foto', '')}" style="width:100%; height:60px; object-fit:contain;">
-                                <div style="font-size:10px; font-weight:bold; color:#333; overflow:hidden; white-space:nowrap;">{row['Producto']}</div>
+                                <div style="font-size:10px; font-weight:bold; color:#007bff;">{row['Tienda']}</div>
                                 <div style="color:#001F3F; font-size:11px; font-weight:bold;">${p_f:.2f}</div>
                             </div>
                         ''', unsafe_allow_html=True)
@@ -211,34 +219,40 @@ if st.session_state["perfil"] == "Invitado":
                             tel_p = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
                             if p_n in st.session_state["carrito"]: st.session_state["carrito"][p_n]['cant'] += 1
                             else: st.session_state["carrito"][p_n] = {'precio': p_f, 'tel': tel_p, 'cant': 1}
-                            st.toast(f"{p_n} añadido! 🛒")
                             st.rerun()
                 st.divider()
 
-        # 3. MATRIZ GENERAL
+        # 3. MATRIZ GENERAL CON FICHA DETALLADA
         df_display = df_filtered.reset_index(drop=True)
-        st.subheader("Catálogo")
+        st.subheader("Catálogo de Productos")
         cols = st.columns(3)
         for idx, row in df_display.iterrows():
             with cols[idx % 3]:
                 try:
                     p_rm = str(row.get('Precio', '0')).replace(',', '.')
                     p_usd = float(re.sub(r'[^\d.]', '', p_rm)) if p_rm else 0.0
-                except: p_usd = 0.0
+                    p_bs = p_usd * tasa_bcv
+                except: p_usd = p_bs = 0.0
+                
+                # Ficha de producto detallada
                 st.markdown(f"""
                     <div class="product-card">
                         <img src="{row.get('Foto', '')}" class="img-contain">
-                        <div style="font-size:14px; font-weight:bold; color:#222; height:35px; overflow:hidden;">{row['Producto']}</div>
-                        <div class="price-style">${p_usd:.2f}</div>
-                        <div class="bcv-style">{(p_usd * tasa_bcv):.2f} Bs.</div>
+                        <div class="tit-prod">{row['Producto']}</div>
+                        <div class="tienda-tag">🏪 {row['Tienda']}</div>
+                        <div class="zona-tag">📍 {row.get('Zona', 'Maracaibo')}</div>
+                        <div class="price-usd">${p_usd:.2f}</div>
+                        <div class="price-bs">≈ {p_bs:.2f} Bs.</div>
+                        <div class="fecha-upd">🕒 Actualizado: {row.get('Actualizado', 'Hoy')}</div>
                     </div>
                 """, unsafe_allow_html=True)
+                
                 tel_prod = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
-                if st.button(f"➕ Añadir", key=f"btn_{idx}", use_container_width=True):
+                if st.button(f"🛒 Añadir al Pedido", key=f"btn_{idx}", use_container_width=True):
                     p_nom = row['Producto']
                     if p_nom in st.session_state["carrito"]: st.session_state["carrito"][p_nom]['cant'] += 1
                     else: st.session_state["carrito"][p_nom] = {'precio': p_usd, 'tel': tel_prod, 'cant': 1}
-                    st.toast(f"¡{p_nom} al carrito!")
+                    st.toast(f"¡{p_nom} añadido!")
                     st.rerun()
 
 # --- PERFIL: EMPRESA  ---
