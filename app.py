@@ -9,6 +9,7 @@ import json
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
+import re
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Píllalo - Business Suite", layout="wide", page_icon="⚡")
@@ -57,12 +58,6 @@ def registrar_estadistica(evento, detalle):
     except: pass
 
 # --- 6. BARRA LATERAL (LOGIN Y SOPORTE) ---
-
-# Bloque de prueba (puedes borrarlo después)
-if spreadsheet:
-    nombres_hojas = [w.title for w in spreadsheet.worksheets()]
-    st.sidebar.write("Hojas encontradas:", nombres_hojas)
-
 with st.sidebar:
     st.title("⚡ Píllalo")
     st.metric("Tasa BCV Hoy", f"{tasa_bcv:.2f} Bs.")
@@ -79,14 +74,12 @@ with st.sidebar:
                 data = user_sheet.get_all_records()
                 
                 if not data:
-                    st.error("❌ La hoja 'Usuarios' está vacía. Agrega al menos un usuario en la fila 2.")
+                    st.error("❌ Hoja 'Usuarios' vacía.")
                 else:
                     usuarios_df = pd.DataFrame(data)
-                    # Verificamos si las columnas existen
                     columnas_necesarias = ['Usuario', 'Clave', 'Perfil']
                     if all(col in usuarios_df.columns for col in columnas_necesarias):
                         match = usuarios_df[(usuarios_df['Usuario'] == u_input) & (usuarios_df['Clave'].astype(str) == p_input)]
-                        
                         if not match.empty:
                             user_data = match.iloc[0]
                             st.session_state.update({
@@ -95,50 +88,42 @@ with st.sidebar:
                                 "user_name": u_input,
                                 "tienda_asociada": user_data.get('Tienda_Asociada', 'Todas')
                             })
-                            st.success(f"Bienvenido {u_input}")
                             st.rerun()
                         else:
-                            st.error("🚫 Usuario o clave incorrectos.")
+                            st.error("🚫 Credenciales incorrectas.")
                     else:
-                        st.error(f"⚠️ Faltan columnas en el Excel. Revisa que existan: {columnas_necesarias}")
+                        st.error(f"⚠️ Faltan columnas: {columnas_necesarias}")
             except Exception as e:
-                st.error(f"❌ Error al leer la pestaña 'Usuarios': {e}")
-
-    # SOPORTE DINÁMICO EN EL SIDEBAR
-    st.divider()
-    st.subheader("🆘 ¿Necesitas ayuda?")
-    mi_whatsapp = "584127522988" 
-    
-    if st.session_state["logueado"]:
-        u_name = st.session_state["user_name"]
-        m_wa = f"Hola Píllalo, soy {u_name}. Necesito soporte técnico."
-        link_wa = f"https://wa.me/{mi_whatsapp}?text={urllib.parse.quote(m_wa)}"
-        st.markdown(f"""<a href="{link_wa}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366;color:white;padding:10px;text-align:center;border-radius:8px;font-weight:bold;">💬 Hablar con Soporte</div></a>""", unsafe_allow_html=True)
+                st.error(f"❌ Error: {e}")
     else:
-        st.info("Inicia sesión para recibir soporte personalizado.")
+        st.write(f"Usuario: **{st.session_state['user_name']}**")
+        st.write(f"Perfil: **{st.session_state['perfil']}**")
+        if st.button("Cerrar Sesión"):
+            st.session_state.update({"logueado": False, "perfil": "Invitado", "user_name": ""})
+            st.rerun()
+
+    st.divider()
+    st.subheader("🆘 Soporte")
+    mi_whatsapp = "584127522988"
+    link_wa = f"https://wa.me/{mi_whatsapp}?text=Hola Píllalo, necesito soporte técnico."
+    st.markdown(f"""<a href="{link_wa}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366;color:white;padding:10px;text-align:center;border-radius:8px;font-weight:bold;">💬 WhatsApp Soporte</div></a>""", unsafe_allow_html=True)
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (VITRINA PÚBLICA) ---
+# --- PERFIL: INVITADO ---
 if st.session_state["perfil"] == "Invitado":
-    st.title("🔍 Encuentra los mejores precios en Maracaibo")
-    if "visitado" not in st.session_state:
-        registrar_estadistica("VISITA", "Entrada a vitrina")
-        st.session_state["visitado"] = True
-
+    st.title("🔍 Vitrina Maracaibo")
     if sheet:
         df = pd.DataFrame(sheet.get_all_records())
         if not df.empty:
             zonas = sorted(df['Zona'].unique()) if 'Zona' in df.columns else []
             zona_sel = st.multiselect("📍 Filtrar por Zona:", zonas)
             if zona_sel: df = df[df['Zona'].isin(zona_sel)]
-                
             for _, row in df.iterrows():
                 with st.container():
                     c1, c2 = st.columns([1, 3])
                     with c1:
-                        foto = row.get('Foto', '')
-                        st.image(foto if str(foto).startswith('http') else "https://via.placeholder.com/150", width=180)
+                        st.image(row.get('Foto', "https://via.placeholder.com/150"), width=150)
                     with c2:
                         st.markdown(f"### {row['Producto']}")
                         try: p_usd = float(str(row.get('Precio', '0.00')).replace(',', '.'))
@@ -147,47 +132,32 @@ if st.session_state["perfil"] == "Invitado":
                         st.write(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
                     st.divider()
 
-# --- PERFIL: ADMIN (CONTROL TOTAL) ---
+# --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
-    st.title("👨‍✈️ Business Intelligence - Píllalo CEO")
-    t_met, t_pag, t_usr, t_cfg = st.tabs(["📊 Estadísticas", "💰 Pagos", "👥 Usuarios", "⚙️ Sistema"])
-
+    st.title("👨‍✈️ Admin Panel")
+    t_met, t_usr = st.tabs(["📊 Estadísticas", "👥 Usuarios"])
     with t_met:
         if sheet:
             df_all = pd.DataFrame(sheet.get_all_records())
-            if not df_all.empty:
-                col1, col2 = st.columns(2)
-                with col1:
-                    top_df = df_all['Producto'].value_counts().head(5).reset_index()
-                    top_df.columns = ['Producto', 'Cantidad']
-                    st.plotly_chart(px.bar(top_df, x='Cantidad', y='Producto', orientation='h', title="Top 5 Productos"), use_container_width=True)
-                with col2:
-                    zona_df = df_all['Zona'].value_counts().reset_index()
-                    zona_df.columns = ['Zona', 'Cantidad']
-                    st.plotly_chart(px.pie(zona_df, names='Zona', values='Cantidad', hole=0.4, title="Distribución por Zonas"), use_container_width=True)
-
+            st.metric("Total Productos", len(df_all))
+            st.plotly_chart(px.pie(df_all, names='Zona', title="Productos por Zona"), use_container_width=True)
     with t_usr:
         try:
             u_sheet = spreadsheet.worksheet("Usuarios")
             df_u = pd.DataFrame(u_sheet.get_all_records())
-            edited = st.data_editor(df_u, num_rows="dynamic", use_container_width=True)
-            if st.button("💾 Guardar Cambios en Usuarios"):
+            edited = st.data_editor(df_u, num_rows="dynamic", use_container_width=True, key="editor_usuarios")
+            if st.button("💾 Guardar Usuarios"):
                 u_sheet.clear()
                 u_sheet.append_row(df_u.columns.tolist())
                 u_sheet.append_rows(edited.values.tolist())
-                st.success("¡Usuarios actualizados!")
-        except: st.error("No se encontró la pestaña 'Usuarios'")
+                st.success("Sincronizado")
+        except: st.error("Error en pestaña Usuarios")
 
-    with t_cfg:
-        if st.button("🔄 Forzar Recarga de Datos"):
-            st.cache_data.clear()
-            st.rerun()
-
-# --- PERFIL: EMPRESA (PANEL DE SOCIO) ---
+# --- PERFIL: EMPRESA ---
 elif st.session_state["perfil"] == "Empresa":
     tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
-    st.title(f"🏢 Panel de Control: {tienda_user}")
-    t1, t2 = st.tabs(["📦 Mi Inventario", "📤 Subir Productos"])
+    st.title(f"🏢 Portal: {tienda_user}")
+    t1, t2 = st.tabs(["📦 Inventario", "📤 Subir Excel"])
 
     with t1:
         if sheet:
@@ -198,49 +168,36 @@ elif st.session_state["perfil"] == "Empresa":
             if not mis_productos.empty:
                 st.dataframe(mis_productos.drop(columns=['fila']), use_container_width=True)
                 st.divider()
-                st.subheader("✏️ Editar Precio Rápido")
-                p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique())
+                st.subheader("✏️ Editar Precio")
+                
+                # KEY ÚNICA para evitar el error DuplicateElementId
+                p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique(), key="sel_prod_empresa")
                 row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
-                st.subheader("✏️ Editar Precio Rápido")
-                p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique())
-                row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
                 
-                # --- LIMPIEZA DE PRECIO SEGURA ---
-                precio_raw = str(row_p.get('Precio', '0.00')).replace(',', '.')
-                # Quitamos cualquier cosa que no sea número o punto (como $)
-                import re
-                precio_limpio = re.sub(r'[^\d.]', '', precio_raw)
+                # Limpieza de precio
+                p_raw = str(row_p.get('Precio', '0.00')).replace(',', '.')
+                p_limpio = re.sub(r'[^\d.]', '', p_raw)
+                try: v_ini = float(p_limpio) if p_limpio else 0.00
+                except: v_ini = 0.00
                 
-                try:
-                    valor_inicial = float(precio_limpio) if precio_limpio else 0.00
-                except ValueError:
-                    valor_inicial = 0.00
+                nuevo_p = st.number_input("Nuevo Precio ($):", value=v_ini, step=0.01, key="num_prec_empresa")
                 
-                nuevo_p = st.number_input("Nuevo Precio ($):", value=valor_inicial, step=0.01)
-                # ---------------------------------
-
-                if st.button("Actualizar"):
-                    sheet.update_cell(int(row_p['fila']), 4, nuevo_p) 
-                    st.success(f"¡Precio de {p_sel} actualizado a ${nuevo_p:.2f}!")
-                    st.rerun()
-                
-                if st.button("Actualizar"):
-                    sheet.update_cell(int(row_p['fila']), 4, nuevo_p) # Col 4 es Precio
-                    st.success("¡Precio actualizado!")
+                if st.button("Actualizar Precio Ahora", key="btn_upd_empresa"):
+                    sheet.update_cell(int(row_p['fila']), 4, nuevo_p)
+                    st.success(f"¡Actualizado a ${nuevo_p:.2f}!")
                     st.rerun()
             else:
-                st.info("Aún no tienes productos cargados.")
+                st.info("No tienes productos cargados.")
 
     with t2:
-        st.subheader("Carga Masiva vía Excel")
-        file = st.file_uploader("Sube tu archivo .xlsx", type=['xlsx'])
-        if file and st.button("🚀 Publicar Inventario"):
+        file = st.file_uploader("Sube Excel", type=['xlsx'], key="uploader_excel")
+        if file and st.button("🚀 Publicar", key="btn_pub_excel"):
             df_new = pd.read_excel(file)
-            df_new['Tienda'] = tienda_user # Seguridad: Forzamos su nombre
+            df_new['Tienda'] = tienda_user
             sheet.append_rows(df_new.values.tolist(), value_input_option='USER_ENTERED')
-            st.success(f"¡{len(df_new)} productos publicados!")
-            st.balloons()
+            st.success("¡Cargado!")
+            st.rerun()
 
-# --- PIE DE PÁGINA ---
+# --- PIE ---
 st.divider()
-st.caption(f"Píllalo 2026 | Business Intelligence | Tasa: {tasa_bcv:.2f} Bs.")
+st.caption(f"Píllalo 2026 | Tasa: {tasa_bcv:.2f} Bs.")
