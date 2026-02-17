@@ -201,7 +201,28 @@ elif st.session_state["perfil"] == "Empresa":
                 st.subheader("✏️ Editar Precio Rápido")
                 p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique())
                 row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
-                nuevo_p = st.number_input("Nuevo Precio ($):", value=float(str(row_p['Precio']).replace(',','.')))
+                st.subheader("✏️ Editar Precio Rápido")
+                p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique())
+                row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
+                
+                # --- LIMPIEZA DE PRECIO SEGURA ---
+                precio_raw = str(row_p.get('Precio', '0.00')).replace(',', '.')
+                # Quitamos cualquier cosa que no sea número o punto (como $)
+                import re
+                precio_limpio = re.sub(r'[^\d.]', '', precio_raw)
+                
+                try:
+                    valor_inicial = float(precio_limpio) if precio_limpio else 0.00
+                except ValueError:
+                    valor_inicial = 0.00
+                
+                nuevo_p = st.number_input("Nuevo Precio ($):", value=valor_inicial, step=0.01)
+                # ---------------------------------
+
+                if st.button("Actualizar"):
+                    sheet.update_cell(int(row_p['fila']), 4, nuevo_p) 
+                    st.success(f"¡Precio de {p_sel} actualizado a ${nuevo_p:.2f}!")
+                    st.rerun()
                 
                 if st.button("Actualizar"):
                     sheet.update_cell(int(row_p['fila']), 4, nuevo_p) # Col 4 es Precio
