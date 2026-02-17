@@ -283,15 +283,50 @@ elif st.session_state["perfil"] == "Empresa":
             st.button("Pagar Suscripción")
 
     with t4:
-        st.subheader("📤 Carga Masiva")
-        st.write("Sube tu archivo Excel para actualizar todo tu catálogo de un solo golpe.")
+        st.subheader("📤 Carga Masiva y Herramientas de Imagen")
+        
+        # --- HERRAMIENTA DE ENLACES DE DRIVE ---
+        with st.expander("🔗 Generador de Links Directos para Fotos (Google Drive)"):
+            st.write("Pegá el link de 'Compartir' de tu foto en Drive para obtener el link directo:")
+            link_drive = st.text_input("Enlace de Google Drive", placeholder="https://drive.google.com/file/d/...")
+            
+            if link_drive:
+                # Lógica de conversión que ya manejamos
+                try:
+                    file_id = ""
+                    if "id=" in link_drive:
+                        file_id = link_drive.split("id=")[1].split("&")[0]
+                    elif "d/" in link_drive:
+                        file_id = link_drive.split("d/")[1].split("/")[0]
+                    
+                    direct_link = f"https://drive.google.com/uc?export=view&id={file_id}"
+                    st.success("¡Link Directo Generado!")
+                    st.code(direct_link, language="text")
+                    st.caption("Copiá este link y pegalo en la columna 'Foto' de tu Excel.")
+                except:
+                    st.error("El formato del link no parece correcto. Revisalo, primo.")
+
+        st.divider()
+
+        # --- CARGA DE EXCEL ---
+        st.write("### Subir Archivo de Inventario")
+        st.info("Asegurate de que tu Excel tenga las columnas: Producto, Tienda, Precio, Foto, Telefono, Prioridad.")
         file = st.file_uploader("Archivo .xlsx", type=['xlsx'], key="uploader_excel")
+        
         if file and st.button("🚀 Publicar Todo", key="btn_pub_excel"):
-            df_new = pd.read_excel(file)
-            df_new['Tienda'] = tienda_user
-            sheet.append_rows(df_new.values.tolist(), value_input_option='USER_ENTERED')
-            st.success("¡Catálogo actualizado correctamente!")
-            st.rerun()
+            try:
+                df_new = pd.read_excel(file)
+                df_new['Tienda'] = tienda_user
+                
+                # Limpieza de precios antes de subir para asegurar el punto decimal
+                if 'Precio' in df_new.columns:
+                    df_new['Precio'] = df_new['Precio'].astype(str).str.replace(',', '.')
+                
+                sheet.append_rows(df_new.values.tolist(), value_input_option='USER_ENTERED')
+                st.success(f"¡Molleja! Cargaste {len(df_new)} productos de un solo viaje.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Algo salió mal: {e}")
 
 # --- PIE ---
 st.divider()
