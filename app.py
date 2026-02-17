@@ -107,8 +107,57 @@ if st.session_state["perfil"] == "Invitado":
 
 # --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
-    st.title("👨‍✈️ Dashboard CEO")
-    st.write("Control total de la plataforma.")
+    st.title("👨‍✈️ Dashboard de Control CEO")
+    
+    t_adm1, t_adm2, t_adm3 = st.tabs(["💰 Aprobar Pagos", "📊 Inteligencia de Mercado", "⚙️ Gestión Global"])
+
+    with t_adm1:
+        st.subheader("Verificación de Pagos Premium")
+        try:
+            est_sheet = spreadsheet.worksheet("Estadisticas")
+            df_est = pd.DataFrame(est_sheet.get_all_records())
+            
+            # Filtramos solo los eventos de PAGO
+            pagos_pendientes = df_est[df_est['Evento'] == "PAGO_PREMIUM"]
+            
+            if not pagos_pendientes.empty:
+                st.write(f"Tienes **{len(pagos_pendientes)}** notificaciones de pago:")
+                st.dataframe(pagos_pendientes, use_container_width=True)
+                
+                st.info("💡 Una vez verificado el dinero en tu cuenta, contacta a la tienda para activar su sello VIP.")
+            else:
+                st.success("No hay pagos pendientes por revisar. ¡Todo al día!")
+        except:
+            st.error("Asegúrate de tener una pestaña llamada 'Estadisticas' en tu Google Sheet.")
+
+    with t_adm2:
+        st.subheader("🔎 Lo más buscado en Maracaibo")
+        # Simulación de analítica (Aquí podrías contar clics en el futuro)
+        if sheet:
+            df_mkt = pd.DataFrame(sheet.get_all_records())
+            if not df_mkt.empty:
+                col_m1, col_m2 = st.columns(2)
+                
+                with col_m1:
+                    st.write("📦 **Categorías con más inventario:**")
+                    fig_cat = px.pie(df_mkt, names='Categoria', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                    st.plotly_chart(fig_cat, use_container_width=True)
+                
+                with col_m2:
+                    st.write("📍 **Zonas con más movimiento:**")
+                    fig_zona = px.bar(df_mkt['Zona'].value_counts(), color_discrete_sequence=['#00D1FF'])
+                    st.plotly_chart(fig_zona, use_container_width=True)
+            else:
+                st.info("Esperando datos para generar gráficas...")
+
+    with t_adm3:
+        st.subheader("⚙️ Configuración del Sistema")
+        st.write("Estado de Conexión: **Online ✅**")
+        st.write(f"Tasa BCV Aplicada: **{tasa_bcv:.2f} Bs.**")
+        
+        if st.button("🔄 Forzar Recarga de Base de Datos"):
+            st.cache_data.clear()
+            st.success("Caché limpiada. Los datos se actualizarán en el próximo refresh.")
 
 # --- PERFIL: EMPRESA ---
 elif st.session_state["perfil"] == "Empresa":
