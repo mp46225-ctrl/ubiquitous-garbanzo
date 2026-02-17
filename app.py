@@ -110,90 +110,136 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (CÓDIGO LIMPIO SIN ERRORES) ---
+# --- PERFIL: INVITADO (VERSIÓN FINAL SIN ERRORES) ---
 if st.session_state["perfil"] == "Invitado":
-    # 1. CSS PARA ORDENAR TODO
     st.markdown("""
         <style>
+        .scroll-container {
+            display: flex; flex-direction: row; overflow-x: auto;
+            white-space: nowrap; padding: 10px 0px; gap: 15px; scrollbar-width: none;
+        }
+        .scroll-container::-webkit-scrollbar { display: none; }
+        .scroll-item {
+            flex: 0 0 auto; width: 110px; background: #ffffff;
+            border-radius: 10px; padding: 8px; text-align: center;
+            border: 1px solid #eee; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
+        }
         .product-card {
-            background: white;
-            border-radius: 15px;
-            padding: 15px;
-            border: 1px solid #f0f0f0;
-            border-top: 5px solid #FF8C00;
-            text-align: center;
-            margin-bottom: 10px;
-            height: 300px;
-            box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
+            background: white; padding: 12px; border-radius: 15px;
+            border: 1px solid #f0f0f0; text-align: center;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 260px;
         }
-        .img-fix {
-            width: 100%; height: 120px; object-fit: contain; margin-bottom: 10px;
-        }
-        .btn-pedir {
-            background-color: #FF8C00; color: white !important;
-            padding: 10px; border-radius: 10px; text-decoration: none;
-            font-weight: bold; display: block; text-align: center;
-            margin-bottom: 25px;
+        .img-contain {
+            width: 100%; height: 120px; object-fit: contain;
+            margin-bottom: 10px; background: white;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. ENCABEZADO Y LOGO
-    # Nota: Asegúrate de que esta URL sea el "Enlace Directo" de tu logo
-    logo_url = "https://i.ibb.co/4Z9YF8YF/pillalo.png" 
+    st.title("🔍 Vitrina Maracaibo")
     
-    st.markdown(f"""
-        <div style="display: flex; justify-content: center; margin-bottom: 10px;">
-            <img src="{logo_url}" width="200">
-        </div>
-        <p style="text-align: center; color: #001F3F; font-weight: bold; font-style: italic; margin-top: -10px;">
-            ¡Píllalo, pedilo y listo!
-        </p>
-    """, unsafe_allow_html=True)
-
     if sheet:
         df = pd.DataFrame(sheet.get_all_records())
         if not df.empty:
-            # 3. BUSCADOR
-            query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy?", key="search_bar")
+            # 1. BUSCADOR
+            query = st.text_input("🔎 ¿Qué buscas hoy?", placeholder="Ej: Harina, Salsa...", key="main_search")
             
             df_filtered = df.copy()
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-            st.divider()
+            # 2. PRODUCTOS TOP (CINTA CON INTERACCIÓN)
+            if 'Prioridad' in df_filtered.columns and not query:
+                df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
+                top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
+                
+                if not top_items.empty:
+                    st.markdown("### 🔥 Destacados")
+                    
+                    # Creamos una fila de botones pequeños para que sean clickeables
+                    cols_top = st.columns(len(top_items) if len(top_items) < 7 else 7) # Ajuste visual
+                    
+                    # Usamos el contenedor nativo para que el clic funcione
+                    scroll_html = '<div class="scroll-container">'
+                    
+                    # Para que los tops sean clickeables en Streamlit, lo mejor es usar columnas con botones de imagen
+                    # Pero para mantener la "cinta", usaremos un selectbox estético o botones simples debajo
+                    
+                    for idx, row in top_items.iterrows():
+                        try:
+                            p_raw = str(row.get('Precio', '0')).replace(',', '.')
+                            p_f = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
+                        except: p_f = 0.0
+                        
+                        img_url = row.get('Foto', "https://via.placeholder.com/150")
+                        
+                        # Generamos un ID único para cada modal
+                        modal_id = f"modal_{idx}"
+                        
+                        with st.container():
+                            # Renderizamos el item estético
+                            st.markdown(f'''
+                                <div style="display: inline-block; width: 110px; margin-right: 15px; background: white; border-radius: 10px; padding: 8px; text-align: center; border: 1px solid #eee;">
+                                    <img src="{img_url}" style="width:100%; height:70px; object-fit:contain;">
+                                    <div style="font-size:11px; font-weight:bold; margin-top:5px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+                                    <div style="color:#007BFF; font-weight:bold; font-size:12px;">${p_f:.2f}</div>
+                                </div>
+                            ''', unsafe_allow_html=True)
+                            
+                            # Botón de "Ver más" justo debajo de cada mini-tarjeta
+                            if st.button(f"👀 Ver", key=f"btn_top_{idx}"):
+                                @st.dialog(f"Detalle: {row['Producto']}")
+                                def detalle_producto(item, precio):
+                                    st.image(item.get('Foto', ""), use_container_width=True)
+                                    col_a, col_b = st.columns(2)
+                                    col_a.metric("Precio USD", f"${precio:.2f}")
+                                    col_b.metric("Precio BCV", f"{(precio * tasa_bcv):.2f} Bs.")
+                                    st.write(f"🏪 **Tienda:** {item['Tienda']}")
+                                    st.write(f"📍 **Zona:** {item.get('Zona', 'Maracaibo')}")
+                                    
+                                    # Botón de WhatsApp dentro del modal
+                                    tel = str(item.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
+                                    msg = urllib.parse.quote(f"Hola {item['Tienda']}, me interesa el destacado *{item['Producto']}*.")
+                                    st.link_button("🟢 Pedir por WhatsApp", f"https://wa.me/{tel}?text={msg}", use_container_width=True)
+                                
+                                detalle_producto(row, p_f)
 
-            # 4. MATRIZ DE PRODUCTOS (SIN ERRORES DE IDENTACIÓN)
+                    st.divider()
+
+            # 3. MATRIZ GENERAL
+            st.subheader("Catálogo de Productos")
             df_display = df_filtered.reset_index(drop=True)
-            cols = st.columns(2 if query else 3)
+            cols = st.columns(3)
             
             for idx, row in df_display.iterrows():
-                # El truco para que no haya error de indentación es que todo esté alineado aquí
-                col_idx = idx % (2 if query else 3)
-                with cols[col_idx]:
+                with cols[idx % 3]:
                     try:
-                        p_raw = str(row.get('Precio', '0')).replace(',', '.')
-                        p_usd = float(re.sub(r'[^\d.]', '', p_raw))
+                        # Limpieza de precio robusta para la Matriz
+                        p_raw_m = str(row.get('Precio', '0')).replace(',', '.')
+                        p_usd = float(re.sub(r'[^\d.]', '', p_raw_m)) if p_raw_m else 0.0
                     except:
                         p_usd = 0.0
                     
-                    # Tarjeta de producto
                     st.markdown(f"""
                         <div class="product-card">
-                            <img src="{row.get('Foto', '')}" class="img-fix">
-                            <div style="font-weight: bold; color: #333; height: 40px; overflow: hidden; font-size:14px;">{row['Producto']}</div>
-                            <div style="color: #001F3F; font-size: 18px; font-weight: bold;">${p_usd:.2f}</div>
-                            <div style="color: #666; font-size: 11px;">{(p_usd * tasa_bcv):.2f} Bs.</div>
+                            <img src="{row.get('Foto', '')}" class="img-contain">
+                            <div style="font-size:14px; font-weight:bold; color:#222; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+                            <div style="font-size:11px; color:#888; margin-bottom:8px;">{row['Tienda']}</div>
+                            <div style="font-size:18px; font-weight:bold; color:#28a745;">${p_usd:.2f}</div>
+                            <div style="font-size:11px; color:#666;">{p_usd * tasa_bcv:.2f} Bs.</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Botón de Pedir
+                    # Botón WhatsApp
                     tel = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
-                    msg = urllib.parse.quote(f"¡Epa! Pillé el producto *{row['Producto']}* en la app. ¿Está disponible?")
+                    if not tel or tel == 'nan': tel = "584127522988"
+                    msg = urllib.parse.quote(f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo.")
                     
                     st.markdown(f"""
-                        <a href="https://wa.me/{tel}?text={msg}" target="_blank" class="btn-pedir">
-                            🛒 Pedir
+                        <a href="https://wa.me/{tel}?text={msg}" target="_blank" style="text-decoration:none;">
+                            <div style="background-color:#25D366; color:white; padding:10px; text-align:center; border-radius:10px; font-weight:bold; font-size:13px; margin-top:-5px; margin-bottom:25px;">
+                                🛒 Pedir
+                            </div>
                         </a>
                     """, unsafe_allow_html=True)
 
