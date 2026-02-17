@@ -131,41 +131,68 @@ elif st.session_state["perfil"] == "Empresa":
     # Definimos las pestañas
     t1, t2, t3 = st.tabs(["📦 Mis Productos", "📤 Carga & Tutorial", "🚀 Marketing"])
 
-    with t1:
+   with t1:
         st.subheader("📦 Gestión de Inventario por Sucursal")
         if sheet:
-            # Traemos la data fresca
             df_e = pd.DataFrame(sheet.get_all_records())
             
             if not df_e.empty:
-                # Obtenemos la lista de todas las tiendas únicas
                 todas_las_sucursales = sorted(df_e['Tienda'].unique())
+                sucursal_sel = st.selectbox("📍 Selecciona Sucursal para gestionar:", todas_las_sucursales)
                 
-                st.write("Selecciona la sucursal que deseas gestionar:")
-                sucursal_sel = st.selectbox("📍 Sucursal detectada:", todas_las_sucursales)
-                
-                # Filtramos la data por la sucursal elegida
+                # Obtenemos los índices reales de la hoja para poder editar/borrar
+                # Agregamos una columna de ID temporal basada en el índice del Excel (+2 por encabezado y base 0)
+                df_e['fila_excel'] = df_e.index + 2
                 mis_datos = df_e[df_e['Tienda'] == sucursal_sel]
                 
                 if not mis_datos.empty:
-                    c_inv1, c_inv2 = st.columns(2)
-                    c_inv1.metric("Productos en sistema", len(mis_datos))
+                    st.write(f"Inventario de **{sucursal_sel}**")
+                    st.dataframe(mis_datos.drop(columns=['fila_excel']), use_container_width=True)
                     
-                    try:
-                        # Limpieza de precios para el promedio
-                        precios_limpios = mis_datos['Precio'].astype(str).str.replace(',', '.').astype(float)
-                        promedio = precios_limpios.mean()
-                        c_inv2.metric("Precio Promedio", f"${promedio:.2f}")
-                    except:
-                        c_inv2.metric("Precio Promedio", "N/A")
-                    
+                    # --- SUB-MENÚ DE ACCIONES ---
                     st.divider()
-                    st.write(f"📋 Inventario actual de: **{sucursal_sel}**")
-                    st.dataframe(mis_datos, use_container_width=True)
+                    col_mod, col_del = st.columns(2)
+                    
+                    with col_mod:
+                        st.markdown("### ✏️ Modificar Producto")
+                        prod_a_editar = st.selectbox("Producto a editar:", mis_datos['Producto'].unique())
+                        # Obtenemos la fila actual del producto
+                        datos_prod = mis_datos[mis_datos['Producto'] == prod_a_editar].iloc[0]
+                        
+                        nuevo_nombre = st.text_input("Nombre:", value=datos_prod['Producto'])
+                        nuevo_precio = st.number_input("Precio ($):", value=float(str(datos_prod['Precio']).replace(',','.')), step=0.01)
+                        
+                        if st.button("💾 Guardar Cambios"):
+                            fila = int(datos_prod['fila_excel'])
+                            # Actualizamos columnas A (Producto) y D (Precio) - Ajusta según tu orden de Excel
+                            sheet.update_cell(fila, 1, nuevo_nombre)
+                            sheet.update_cell(fila, 4, nuevo_precio)
+                            st.success(f"¡{prod_a_editar} actualizado!")
+                            st.rerun()
+
+                    with col_del:
+                        st.markdown("### 🗑️ Eliminar")
+                        opcion_borrar = st.radio("Tipo de borrado:", ["Un solo producto", "TODO el inventario de esta sucursal"])
+                        
+                        if opcion_borrar == "Un solo producto":
+                            prod_a_borrar = st.selectbox("Producto a eliminar:", mis_datos['Producto'].unique(), key="del_uno")
+                            if st.button("❌ Eliminar Producto"):
+                                fila_b = int(mis_datos[mis_datos['Producto'] == prod_a_borrar].iloc[0]['fila_excel'])
+                                sheet.delete_rows(fila_b)
+                                st.warning(f"Producto {prod_a_borrar} eliminado.")
+                                st.rerun()
+                        
+                        else:
+                            st.error("⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER")
+                            if st.button("💣 BORRAR TODO EL INVENTARIO"):
+                                # Borramos de abajo hacia arriba para no dañar los índices
+                                filas_a_borrar = sorted(mis_datos['fila_excel'].tolist(), reverse=True)
+                                for f in filas_a_borrar:
+                                    sheet.delete_rows(f)
+                                st.success(f"Inventario de {sucursal_sel} limpiado por completo.")
+                                st.rerun()
                 else:
                     st.warning("No hay productos para esta sucursal.")
-            else:
-                st.info("Aún no hay datos cargados en el sistema.")
 
     with t2:
         st.subheader("🚀 Guía de Carga Rápida")
