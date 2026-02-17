@@ -110,18 +110,49 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO ---
+# --- PERFIL: INVITADO (VITRINA MEJORADA) ---
 if st.session_state["perfil"] == "Invitado":
     st.title("🔍 Vitrina Maracaibo")
+    
     if sheet:
         df = pd.DataFrame(sheet.get_all_records())
         if not df.empty:
-            zonas = sorted(df['Zona'].unique()) if 'Zona' in df.columns else []
-            zona_sel = st.multiselect("📍 Filtrar por Zona:", zonas)
-            if zona_sel: df = df[df['Zona'].isin(zona_sel)]
-            for _, row in df.iterrows():
+            # 1. BUSCADOR Y FILTROS
+            col_search, col_zona = st.columns([2, 1])
+            with col_search:
+                query = st.text_input("¿Qué estás buscando?", placeholder="Ej: Harina Pan, Aceite...", key="main_search")
+            with col_zona:
+                zonas = sorted(df['Zona'].unique()) if 'Zona' in df.columns else []
+                zona_sel = st.multiselect("📍 Zona:", zonas)
+
+            # Aplicar Filtros
+            df_filtered = df.copy()
+            if query:
+                df_filtered = df_filtered[df_filtered['Producto'].str.contains(query, case=False, na=False)]
+            if zona_sel:
+                df_filtered = df_filtered[df_filtered['Zona'].isin(zona_sel)]
+
+            # 2. SECCIÓN TOP (PRODUCTOS IMPULSADOS)
+            if 'Prioridad' in df_filtered.columns:
+                # Convertimos a numérico por seguridad
+                df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
+                top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
+                
+                if not top_items.empty and not query: # Solo mostramos destacados si no hay una búsqueda activa
+                    st.markdown("### 🔥 Recomendados Píllalo")
+                    cols_top = st.columns(len(top_items[:4])) # Máximo 4 en fila
+                    for idx, (_, row) in enumerate(top_items[:4].iterrows()):
+                        with cols_top[idx]:
+                            st.image(row.get('Foto', "https://via.placeholder.com/150"), use_container_width=True)
+                            st.caption(f"**{row['Producto']}**")
+                            st.markdown(f"**${float(str(row['Precio']).replace(',','.')):.2f}**")
+                    st.divider()
+
+            # 3. LISTADO GENERAL
+            st.subheader("Todos los productos")
+            for _, row in df_filtered.iterrows():
                 with st.container():
-                    c1, c2 = st.columns([1, 3])
+                    c1, c2, c3 = st.columns([1, 2, 1])
                     with c1:
                         st.image(row.get('Foto', "https://via.placeholder.com/150"), width=150)
                     with c2:
@@ -130,6 +161,23 @@ if st.session_state["perfil"] == "Invitado":
                         except: p_usd = 0.00
                         st.markdown(f"## 💰 ${p_usd:.2f} | <span style='color:#00D1FF'>{p_usd * tasa_bcv:.2f} Bs.</span>", unsafe_allow_html=True)
                         st.write(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
+                    
+                    with c3:
+                        # 4. BOTÓN PEDIR POR WHATSAPP
+                        # Asumimos que tienes una columna 'Telefono' en el Excel, sino usamos el tuyo de soporte
+                        tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
+                        msg = f"Hola {row['Tienda']}, vi el producto *{row['Producto']}* en Píllalo y me interesa. ¿Tienen disponibilidad?"
+                        link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
+                        
+                        st.write("") # Espaciador
+                        st.write("") 
+                        st.markdown(f"""
+                            <a href="{link_pedido}" target="_blank" style="text-decoration:none;">
+                                <div style="background-color:#25D366;color:white;padding:12px;text-align:center;border-radius:10px;font-weight:bold;font-size:14px;">
+                                    🛒 Pedir ahora
+                                </div>
+                            </a>
+                        """, unsafe_allow_html=True)
                     st.divider()
 
 # --- PERFIL: ADMIN ---
