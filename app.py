@@ -108,67 +108,81 @@ if st.session_state["perfil"] == "Invitado":
 
 # --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
-    st.title("👨‍✈️ Dashboard CEO")
-    t_adm1, t_adm2, t_adm3 = st.tabs(["💰 Aprobar Pagos", "📊 Inteligencia", "⚙️ Sistema"])
+    st.title("👨‍✈️ Business Intelligence - Píllalo CEO")
+    
+    # Pestañas de alto nivel
+    t_metrica, t_pagos, t_usuarios, t_sistema = st.tabs([
+        "📊 Estadísticas Reales", "💰 Pagos y Planes", "👥 Gestión de Usuarios", "⚙️ Configuración"
+    ])
 
-    with t_adm1:
-        st.subheader("💰 Verificación de Pagos Premium")
-        try:
-            # Intentamos conectar con la hoja Estadisticas
+    # --- TAB 1: ESTADÍSTICAS COMPLETAS ---
+    with t_metrica:
+        if sheet:
+            df_total = pd.DataFrame(sheet.get_all_records())
             est_sheet = spreadsheet.worksheet("Estadisticas")
             df_est = pd.DataFrame(est_sheet.get_all_records())
             
-            if not df_est.empty:
-                # Buscamos solo los que dicen PAGO_PREMIUM
-                pagos = df_est[df_est['Evento'].str.contains("PAGO", na=False)]
-                
-                if not pagos.empty:
-                    st.write(f"Tienes **{len(pagos)}** registros de intención de pago:")
-                    st.dataframe(pagos, use_container_width=True)
-                else:
-                    st.info("No hay pagos registrados aún en la lista.")
-            else:
-                st.info("La hoja de Estadísticas está lista pero aún no tiene datos.")
-        
-        except gspread.exceptions.WorksheetNotFound:
-            st.error("❌ ERROR: No existe la pestaña 'Estadisticas' en el Google Sheet.")
-            st.info("💡 Ve a tu archivo 'Pillalo_Data' y crea una hoja llamada 'Estadisticas' para activar esta función.")
+            # Métricas Flash (KPIs)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Productos", len(df_total))
+            c2.metric("Comercios Activos", df_total['Tienda'].nunique())
+            c3.metric("Visitas Totales", len(df_est[df_est['Evento'] == 'VISITA']))
+            c4.metric("Planes Vendidos", len(df_est[df_est['Evento'] == 'PAGO_PREMIUM']))
 
-    with t_adm2:
-        st.subheader("🔎 Análisis de Mercado")
-        if sheet:
-            df_mkt = pd.DataFrame(sheet.get_all_records())
-            if not df_mkt.empty:
-                col_m1, col_m2 = st.columns(2)
-                
-                # Identificamos columnas existentes para evitar errores de nombres
-                c_cat = 'Categoria' if 'Categoria' in df_mkt.columns else df_mkt.columns[0]
-                c_zona = 'Zona' if 'Zona' in df_mkt.columns else df_mkt.columns[0]
+            st.divider()
+            col_g1, col_g2 = st.columns(2)
 
-                with col_m1:
-                    fig_cat = px.pie(df_mkt, names=c_cat, hole=0.4, title="Distribución por Categorías")
-                    st.plotly_chart(fig_cat, use_container_width=True)
-                
-                with col_m2:
-                    # Corrección del error de Plotly: Usamos nombres genéricos tras el conteo
-                    df_z = df_mkt[c_zona].value_counts().reset_index()
-                    df_z.columns = ['Ubicacion', 'Cantidad'] # Renombramos manualmente para ir a la segura
-                    
-                    fig_z = px.bar(
-                        df_z, 
-                        x='Ubicacion', 
-                        y='Cantidad', 
-                        title="Zonas con más Productos", 
-                        color_discrete_sequence=['#00D1FF']
-                    )
-                    st.plotly_chart(fig_z, use_container_width=True)
-            else:
-                st.info("Esperando datos para generar gráficas...")
+            with col_g1:
+                st.subheader("🔥 Productos Top (Más repetidos)")
+                top_prod = df_total['Producto'].value_counts().head(5).reset_index()
+                top_prod.columns = ['Producto', 'Cantidad']
+                fig_top = px.bar(top_prod, x='Cantidad', y='Producto', orientation='h', color_discrete_sequence=['#FF4B4B'])
+                st.plotly_chart(fig_top, use_container_width=True)
 
-    with t_adm3:
-        if st.button("Limpiar Caché"):
+            with col_g2:
+                st.subheader("📍 Demanda por Zonas")
+                df_zonas = df_total['Zona'].value_counts().reset_index()
+                df_zonas.columns = ['Zona', 'Cantidad']
+                fig_zona = px.pie(df_zonas, names='Zona', values='Cantidad', hole=0.4)
+                st.plotly_chart(fig_zona, use_container_width=True)
+
+    # --- TAB 2: PAGOS Y PLANES ---
+    with t_pagos:
+        st.subheader("💳 Registro de Ingresos y Planes")
+        df_pagos = df_est[df_est['Evento'] == 'PAGO_PREMIUM']
+        if not df_pagos.empty:
+            st.dataframe(df_pagos, use_container_width=True)
+            # Resumen de planes
+            st.write("📈 **Resumen por Plan:**")
+            st.write(df_pagos['Detalle'].value_counts())
+        else:
+            st.info("No hay pagos registrados aún.")
+
+    # --- TAB 3: GESTIÓN DE USUARIOS ---
+    with t_usuarios:
+        st.subheader("🔐 Control de Credenciales")
+        try:
+            user_sheet = spreadsheet.worksheet("Usuarios")
+            df_users = pd.DataFrame(user_sheet.get_all_records())
+            
+            st.write("Usuarios actuales en el sistema:")
+            edited_df = st.data_editor(df_users, num_rows="dynamic", use_container_width=True)
+            
+            if st.button("💾 Guardar Cambios en Credenciales"):
+                user_sheet.clear()
+                user_sheet.append_row(df_users.columns.tolist()) # Encabezados
+                user_sheet.append_rows(edited_df.values.tolist())
+                st.success("¡Base de datos de usuarios actualizada!")
+        except:
+            st.error("Crea la pestaña 'Usuarios' en tu Excel para gestionar credenciales.")
+
+    # --- TAB 4: SISTEMA ---
+    with t_sistema:
+        st.subheader("⚙️ Parámetros Globales")
+        st.write(f"Tasa BCV: **{tasa_bcv:.2f} Bs.**")
+        if st.button("🔄 Forzar Sincronización"):
             st.cache_data.clear()
-            st.success("Caché limpia")
+            st.rerun()
 
 # --- PERFIL: EMPRESA ---
 elif st.session_state["perfil"] == "Empresa":
