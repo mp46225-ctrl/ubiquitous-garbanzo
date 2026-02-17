@@ -112,30 +112,27 @@ with st.sidebar:
 
 # --- PERFIL: INVITADO (INTERFAZ PREMIUM) ---
 if st.session_state["perfil"] == "Invitado":
-    # CSS MEJORADO: Fuerza la fila horizontal y oculta barras de scroll molestas
+    # CSS para la cinta transportadora y diseño de tarjetas
     st.markdown("""
         <style>
         .scroll-container {
             display: flex;
-            flex-direction: row; /* Fuerza los items uno al lado del otro */
-            overflow-x: auto;    /* Habilita el movimiento lateral */
+            flex-direction: row;
+            overflow-x: auto;
             white-space: nowrap;
-            padding: 15px 5px;
+            padding: 10px 5px;
             gap: 15px;
-            scrollbar-width: none; /* Firefox */
+            scrollbar-width: none;
         }
-        .scroll-container::-webkit-scrollbar {
-            display: none; /* Chrome/Safari */
-        }
+        .scroll-container::-webkit-scrollbar { display: none; }
         .scroll-item {
-            flex: 0 0 auto;      /* IMPORTANTE: Evita que el item se encoja */
-            width: 130px; 
+            flex: 0 0 auto;
+            width: 130px;
             background: #1e1e1e;
             border-radius: 12px;
             padding: 10px;
             text-align: center;
             border: 1px solid #333;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
         }
         .product-card {
             background: #1e1e1e;
@@ -161,21 +158,30 @@ if st.session_state["perfil"] == "Invitado":
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-           # --- GENERACIÓN DE LA CINTA ---
-scroll_html = '<div class="scroll-container">'
-for _, row in top_items.iterrows():
-    # ... (aquí va tu lógica de limpieza de precio y fotos) ...
-    scroll_html += f'''
-        <div class="scroll-item">
-            <img src="{row.get('Foto', '')}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
-            <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-            <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
-        </div>
-    '''
-scroll_html += '</div>'
-
-# ESTA ES LA LÍNEA CLAVE:
-st.markdown(scroll_html, unsafe_allow_html=True)
+            # 2. CINTA TRANSPORTADORA (PRODUCTOS TOP)
+            if 'Prioridad' in df_filtered.columns and not query:
+                df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
+                top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
+                
+                if not top_items.empty:
+                    st.markdown("### 🔥 Destacados Píllalo")
+                    scroll_html = '<div class="scroll-container">'
+                    for _, row in top_items.iterrows():
+                        try:
+                            p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
+                            p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
+                        except: p_float = 0.00
+                        img_url = row.get('Foto', "https://via.placeholder.com/150")
+                        scroll_html += f'''
+                            <div class="scroll-item">
+                                <img src="{img_url}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
+                                <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+                                <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
+                            </div>
+                        '''
+                    scroll_html += '</div>'
+                    st.markdown(scroll_html, unsafe_allow_html=True)
+                    st.divider()
 
             # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
             st.subheader("Todos los productos")
@@ -183,13 +189,11 @@ st.markdown(scroll_html, unsafe_allow_html=True)
             cols = st.columns(3)
             for idx, (_, row) in enumerate(df_filtered.iterrows()):
                 with cols[idx % 3]:
-                    # --- LIMPIEZA DE PRECIO ---
                     try:
                         p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
                         p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
                     except: p_usd = 0.00
                     
-                    # Tarjeta de producto
                     st.markdown(f"""
                         <div class="product-card">
                             <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; height:150px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
@@ -200,13 +204,12 @@ st.markdown(scroll_html, unsafe_allow_html=True)
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Botón de WhatsApp
                     tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
                     if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
                     msg = f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo."
                     link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
                     
-                    st.link_button("🛒 Pedir", link_pedido, use_container_width=True, key=f"btn_{idx}")
+                    st.link_button("🛒 Pedir", link_pedido, use_container_width=True, key=f"inv_btn_{idx}")
                     st.write("")
 
 # --- PERFIL: ADMIN ---
