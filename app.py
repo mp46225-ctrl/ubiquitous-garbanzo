@@ -110,92 +110,113 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (VITRINA MEJORADA - VERSIÓN ANTI-ERRORES) ---
+# --- PERFIL: INVITADO (INTERFAZ PREMIUM) ---
 if st.session_state["perfil"] == "Invitado":
+    # CSS para la cinta transportadora y diseño de tarjetas
+    st.markdown("""
+        <style>
+        .scroll-container {
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 10px 5px;
+            gap: 15px;
+            scrollbar-width: thin;
+        }
+        .scroll-item {
+            flex: 0 0 auto;
+            width: 150px;
+            background: #1e1e1e;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        .product-card {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 15px;
+            border: 1px solid #333;
+            margin-bottom: 20px;
+            height: 100%;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.title("🔍 Vitrina Maracaibo")
     
     if sheet:
-        # Usamos cache para que la carga sea veloz
-        data_all = sheet.get_all_records()
-        df = pd.DataFrame(data_all)
-        
+        df = pd.DataFrame(sheet.get_all_records())
         if not df.empty:
-            # 1. BUSCADOR Y FILTROS
-            col_search, col_zona = st.columns([2, 1])
-            with col_search:
-                query = st.text_input("¿Qué estás buscando?", placeholder="Ej: Harina Pan, Aceite...", key="main_search")
-            with col_zona:
-                zonas = sorted(df['Zona'].unique()) if 'Zona' in df.columns else []
-                zona_sel = st.multiselect("📍 Zona:", zonas)
-
+            # 1. BUSCADOR
+            query = st.text_input("🔎 ¿Qué buscas hoy?", placeholder="Ej: Harina, Refresco...", key="main_search")
+            
             # Aplicar Filtros
             df_filtered = df.copy()
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
-            if zona_sel:
-                df_filtered = df_filtered[df_filtered['Zona'].isin(zona_sel)]
 
-            # 2. SECCIÓN TOP (PRODUCTOS IMPULSADOS)
-            if 'Prioridad' in df_filtered.columns:
-                # Limpieza de datos: convertimos prioridad y precio a números seguros
+            # 2. CINTA TRANSPORTADORA (PRODUCTOS TOP)
+            if 'Prioridad' in df_filtered.columns and not query:
                 df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
-                
                 top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
                 
-                if not top_items.empty and not query:
-                    st.markdown("### 🔥 Recomendados Píllalo")
-                    cols_top = st.columns(min(len(top_items), 4)) 
-                    for idx, (_, row) in enumerate(top_items.head(4).iterrows()):
-                        with cols_top[idx]:
-                            # --- LIMPIEZA DE PRECIO SEGURA ---
-                            try:
-                                p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
-                                p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
-                            except:
-                                p_float = 0.00
-                            
-                            st.image(row.get('Foto', "https://via.placeholder.com/150"), use_container_width=True)
-                            st.caption(f"**{row['Producto']}**")
-                            st.markdown(f"**${p_float:.2f}**")
+                if not top_items.empty:
+                    st.markdown("### 🔥 Destacados Píllalo")
+                    
+                    # Generamos el HTML para la cinta transportadora
+                    scroll_html = '<div class="scroll-container">'
+                    for _, row in top_items.iterrows():
+                        try:
+                            p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
+                            p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
+                        except: p_float = 0.00
+                        
+                        img_url = row.get('Foto', "https://via.placeholder.com/150")
+                        scroll_html += f'''
+                            <div class="scroll-item">
+                                <img src="{img_url}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
+                                <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis;">{row['Producto']}</div>
+                                <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
+                            </div>
+                        '''
+                    scroll_html += '</div>'
+                    st.markdown(scroll_html, unsafe_allow_html=True)
                     st.divider()
 
-            # 3. LISTADO GENERAL
+            # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
             st.subheader("Todos los productos")
-            for _, row in df_filtered.iterrows():
-                with st.container():
-                    c1, c2, c3 = st.columns([1, 2, 1])
-                    with c1:
-                        st.image(row.get('Foto', "https://via.placeholder.com/150"), width=150)
-                    with c2:
-                        st.markdown(f"### {row['Producto']}")
-                        # --- LIMPIEZA DE PRECIO SEGURA ---
+            
+            # Creamos la rejilla de 3 columnas
+            cols = st.columns(3)
+            for idx, (_, row) in enumerate(df_filtered.iterrows()):
+                with cols[idx % 3]: # Esto distribuye los productos en 0, 1, 2, 0, 1, 2...
+                    with st.container():
+                        # --- LIMPIEZA DE PRECIO ---
                         try:
                             p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
                             p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
-                        except:
-                            p_usd = 0.00
-                            
-                        st.markdown(f"## 💰 ${p_usd:.2f} | <span style='color:#00D1FF'>{p_usd * tasa_bcv:.2f} Bs.</span>", unsafe_allow_html=True)
-                        st.write(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
-                    
-                    with c3:
-                        # 4. BOTÓN PEDIR POR WHATSAPP
-                        tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
-                        if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
+                        except: p_usd = 0.00
                         
-                        msg = f"Hola {row['Tienda']}, vi el producto *{row['Producto']}* en Píllalo y me interesa."
-                        link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
-                        
+                        # Tarjeta de producto
                         st.markdown(f"""
-                            <div style="margin-top:40px;">
-                            <a href="{link_pedido}" target="_blank" style="text-decoration:none;">
-                                <div style="background-color:#25D366;color:white;padding:12px;text-align:center;border-radius:10px;font-weight:bold;font-size:14px;">
-                                    🛒 Pedir ahora
-                                </div>
-                            </a>
+                            <div class="product-card">
+                                <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; border-radius:10px; margin-bottom:10px;">
+                                <h4 style="margin:0; font-size:16px;">{row['Producto']}</h4>
+                                <p style="color:gray; font-size:12px; margin:5px 0;">🏪 {row['Tienda']}</p>
+                                <h3 style="margin:5px 0; color:#00D1FF;">${p_usd:.2f}</h3>
+                                <p style="font-size:14px; color:#555;">{p_usd * tasa_bcv:.2f} Bs.</p>
                             </div>
                         """, unsafe_allow_html=True)
-                    st.divider()
+                        
+                        # Botón de WhatsApp debajo de la tarjeta (Streamlit Nativo para que funcione el link)
+                        tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
+                        if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
+                        msg = f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo."
+                        link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
+                        
+                        st.link_button("🛒 Pedir", link_pedido, use_container_width=True)
+                        st.write("") # Espacio entre filas
 
 # --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
