@@ -8,6 +8,7 @@ import plotly.express as px
 import json
 import requests
 from bs4 import BeautifulSoup
+import urllib.parse
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Píllalo - Business Suite", layout="wide", page_icon="⚡")
@@ -55,7 +56,7 @@ def registrar_estadistica(evento, detalle):
         est_sheet.append_row([fecha, evento, detalle, "Web"], value_input_option='USER_ENTERED')
     except: pass
 
-# --- 6. BARRA LATERAL (LOGIN DINÁMICO) ---
+# --- 6. BARRA LATERAL (LOGIN Y SOPORTE) ---
 with st.sidebar:
     st.title("⚡ Píllalo")
     st.metric("Tasa BCV Hoy", f"{tasa_bcv:.2f} Bs.")
@@ -65,16 +66,11 @@ with st.sidebar:
         st.subheader("🔑 Acceso")
         u_input = st.text_input("Usuario")
         p_input = st.text_input("Contraseña", type="password")
-       if st.button("Entrar"):
+        
+        if st.button("Entrar"):
             try:
                 user_sheet = spreadsheet.worksheet("Usuarios")
                 usuarios_df = pd.DataFrame(user_sheet.get_all_records())
-                
-                # ... resto del codigo de validación ...
-            except gspread.exceptions.WorksheetNotFound:
-                st.error("❌ La pestaña 'Usuarios' no existe en Google Sheets.")
-            except Exception as e:
-                st.error(f"❌ Error inesperado: {e}")
                 
                 # Buscamos coincidencia
                 match = usuarios_df[(usuarios_df['Usuario'] == u_input) & (usuarios_df['Clave'].astype(str) == p_input)]
@@ -91,23 +87,36 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("Credenciales incorrectas")
-            except:
+            except Exception as e:
                 st.error("Error al validar usuarios. ¿Existe la pestaña 'Usuarios'?")
     else:
         st.write(f"Usuario: **{st.session_state['user_name']}**")
         st.write(f"Perfil: **{st.session_state['perfil']}**")
         if st.button("Cerrar Sesión"):
-            st.session_state.update({"logueado": False, "perfil": "Invitado", "user_name": ""})
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
             st.rerun()
+
+    # SOPORTE DINÁMICO EN EL SIDEBAR
+    st.divider()
+    st.subheader("🆘 ¿Necesitas ayuda?")
+    mi_whatsapp = "584127522988" 
+    
+    if st.session_state["logueado"]:
+        u_name = st.session_state["user_name"]
+        m_wa = f"Hola Píllalo, soy {u_name}. Necesito soporte técnico."
+        link_wa = f"https://wa.me/{mi_whatsapp}?text={urllib.parse.quote(m_wa)}"
+        st.markdown(f"""<a href="{link_wa}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366;color:white;padding:10px;text-align:center;border-radius:8px;font-weight:bold;">💬 Hablar con Soporte</div></a>""", unsafe_allow_html=True)
+    else:
+        st.info("Inicia sesión para recibir soporte personalizado.")
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO ---
+# --- PERFIL: INVITADO (VITRINA PÚBLICA) ---
 if st.session_state["perfil"] == "Invitado":
-    st.title("🔍 Encuentra los mejores precios")
-    # Registramos la visita
+    st.title("🔍 Encuentra los mejores precios en Maracaibo")
     if "visitado" not in st.session_state:
-        registrar_estadistica("VISITA", "Usuario anónimo entró a la vitrina")
+        registrar_estadistica("VISITA", "Entrada a vitrina")
         st.session_state["visitado"] = True
 
     if sheet:
@@ -122,230 +131,88 @@ if st.session_state["perfil"] == "Invitado":
                     c1, c2 = st.columns([1, 3])
                     with c1:
                         foto = row.get('Foto', '')
-                        st.image(foto if str(foto).startswith('http') else "https://via.placeholder.com/150?text=Sin+Foto", width=180)
+                        st.image(foto if str(foto).startswith('http') else "https://via.placeholder.com/150", width=180)
                     with c2:
                         st.markdown(f"### {row['Producto']}")
-                        try:
-                            p_usd = float(str(row.get('Precio', '0.00')).replace(',', '.'))
+                        try: p_usd = float(str(row.get('Precio', '0.00')).replace(',', '.'))
                         except: p_usd = 0.00
-                        p_bs = p_usd * tasa_bcv
-                        st.markdown(f"## 💰 ${p_usd:.2f} | <span style='color:#00D1FF'>{p_bs:.2f} Bs.</span>", unsafe_allow_html=True)
+                        st.markdown(f"## 💰 ${p_usd:.2f} | <span style='color:#00D1FF'>{p_usd * tasa_bcv:.2f} Bs.</span>", unsafe_allow_html=True)
                         st.write(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
                     st.divider()
 
-# --- PERFIL: ADMIN ---
+# --- PERFIL: ADMIN (CONTROL TOTAL) ---
 elif st.session_state["perfil"] == "Admin":
     st.title("👨‍✈️ Business Intelligence - Píllalo CEO")
-    t_metrica, t_pagos, t_usuarios, t_sistema = st.tabs(["📊 Estadísticas", "💰 Pagos", "👥 Usuarios", "⚙️ Config"])
+    t_met, t_pag, t_usr, t_cfg = st.tabs(["📊 Estadísticas", "💰 Pagos", "👥 Usuarios", "⚙️ Sistema"])
 
-    with t_metrica:
+    with t_met:
         if sheet:
-            df_total = pd.DataFrame(sheet.get_all_records())
-            try:
-                est_sheet = spreadsheet.worksheet("Estadisticas")
-                df_est = pd.DataFrame(est_sheet.get_all_records())
-            except: 
-                df_est = pd.DataFrame(columns=['Fecha', 'Evento', 'Detalle'])
+            df_all = pd.DataFrame(sheet.get_all_records())
+            if not df_all.empty:
+                col1, col2 = st.columns(2)
+                with col1:
+                    top_df = df_all['Producto'].value_counts().head(5).reset_index()
+                    top_df.columns = ['Producto', 'Cantidad']
+                    st.plotly_chart(px.bar(top_df, x='Cantidad', y='Producto', orientation='h', title="Top 5 Productos"), use_container_width=True)
+                with col2:
+                    zona_df = df_all['Zona'].value_counts().reset_index()
+                    zona_df.columns = ['Zona', 'Cantidad']
+                    st.plotly_chart(px.pie(zona_df, names='Zona', values='Cantidad', hole=0.4, title="Distribución por Zonas"), use_container_width=True)
 
-            # --- MÉTRICAS KPI ---
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("📦 Productos", len(df_total))
-            c2.metric("🏪 Comercios", df_total['Tienda'].nunique() if 'Tienda' in df_total.columns else 0)
-            
-            visitas = len(df_est[df_est['Evento'] == 'VISITA']) if 'Evento' in df_est.columns else 0
-            planes = len(df_est[df_est['Evento'] == 'PAGO_PREMIUM']) if 'Evento' in df_est.columns else 0
-            c3.metric("👤 Visitas Totales", visitas)
-            c4.metric("💎 Planes Vendidos", planes)
-
-            st.divider()
-
-            # --- GRÁFICOS (REPARADOS) ---
-            if not df_total.empty:
-                col_g1, col_g2 = st.columns(2)
-                
-                with col_g1:
-                    st.subheader("🔥 Top 5 Productos")
-                    # Contamos y reseteamos nombres manualmente para evitar el error 'index'
-                    top_df = df_total['Producto'].value_counts().head(5).reset_index()
-                    top_df.columns = ['Producto', 'Cantidad'] # Forzamos nombres claros
-                    
-                    fig_top = px.bar(
-                        top_df, 
-                        x='Cantidad', 
-                        y='Producto', 
-                        orientation='h',
-                        color_discrete_sequence=['#FF4B4B'],
-                        text_auto=True
-                    )
-                    fig_top.update_layout(yaxis={'categoryorder':'total ascending'})
-                    st.plotly_chart(fig_top, use_container_width=True)
-
-                with col_g2:
-                    st.subheader("📍 Oferta por Zona")
-                    # Contamos y reseteamos nombres manualmente
-                    zona_chart_df = df_total['Zona'].value_counts().reset_index()
-                    zona_chart_df.columns = ['Zona', 'Cantidad'] # Forzamos nombres claros
-                    
-                    fig_pie = px.pie(
-                        zona_chart_df, 
-                        names='Zona', 
-                        values='Cantidad', 
-                        hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Pastel
-                    )
-                    st.plotly_chart(fig_pie, use_container_width=True)
-            else:
-                st.info("Aún no hay datos para mostrar gráficos.")
-
-    with t_usuarios:
-        st.subheader("🔐 Gestión de Usuarios (Google Sheets)")
+    with t_usr:
         try:
             u_sheet = spreadsheet.worksheet("Usuarios")
             df_u = pd.DataFrame(u_sheet.get_all_records())
             edited = st.data_editor(df_u, num_rows="dynamic", use_container_width=True)
-            if st.button("💾 Actualizar Credenciales"):
+            if st.button("💾 Guardar Cambios en Usuarios"):
                 u_sheet.clear()
                 u_sheet.append_row(df_u.columns.tolist())
                 u_sheet.append_rows(edited.values.tolist())
-                st.success("Usuarios actualizados")
-        except: st.error("Crea la pestaña 'Usuarios' en el Excel")
+                st.success("¡Usuarios actualizados!")
+        except: st.error("No se encontró la pestaña 'Usuarios'")
 
-    with t_pagos:
-        try:
-            df_p = df_est[df_est['Evento'] == 'PAGO_PREMIUM']
-            st.dataframe(df_p, use_container_width=True)
-        except: st.info("Sin registros de pago")
-
-    with t_sistema:
-        if st.button("🔄 Recargar Todo"):
+    with t_cfg:
+        if st.button("🔄 Forzar Recarga de Datos"):
             st.cache_data.clear()
             st.rerun()
 
-# --- PERFIL: EMPRESA (Socio Comercial) ---
+# --- PERFIL: EMPRESA (PANEL DE SOCIO) ---
 elif st.session_state["perfil"] == "Empresa":
-    tienda_user = st.session_state.get("tienda_asociada", "")
-    st.title(f"🏢 Portal Business: {tienda_user}")
-    
-    t1, t2, t3 = st.tabs(["📦 Mi Inventario", "📤 Carga Masiva", "🚀 Marketing & Planes"])
+    tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
+    st.title(f"🏢 Panel de Control: {tienda_user}")
+    t1, t2 = st.tabs(["📦 Mi Inventario", "📤 Subir Productos"])
 
     with t1:
-        st.subheader(f"Gestión de Productos - {tienda_user}")
         if sheet:
-            # Cargamos la data y añadimos el número de fila real del Excel
             df_full = pd.DataFrame(sheet.get_all_records())
-            df_full['fila_excel'] = df_full.index + 2  
+            df_full['fila'] = df_full.index + 2
+            mis_productos = df_full[df_full['Tienda'] == tienda_user]
             
-            # FILTRO DE SEGURIDAD: Solo ve lo que le pertenece
-            mis_datos = df_full[df_full['Tienda'] == tienda_user]
-            
-            if not mis_datos.empty:
-                # Mostramos la tabla limpia (sin la columna de la fila técnica)
-                st.dataframe(mis_datos.drop(columns=['fila_excel']), use_container_width=True)
-                
+            if not mis_productos.empty:
+                st.dataframe(mis_productos.drop(columns=['fila']), use_container_width=True)
                 st.divider()
-                col_mod, col_del = st.columns(2)
+                st.subheader("✏️ Editar Precio Rápido")
+                p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique())
+                row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
+                nuevo_p = st.number_input("Nuevo Precio ($):", value=float(str(row_p['Precio']).replace(',','.')))
                 
-                with col_mod:
-                    st.markdown("### ✏️ Modificar Producto")
-                    prod_sel = st.selectbox("Selecciona producto para editar:", mis_datos['Producto'].unique())
-                    datos_p = mis_datos[mis_datos['Producto'] == prod_sel].iloc[0]
-                    
-                    n_nom = st.text_input("Nuevo Nombre:", value=datos_p['Producto'])
-                    # Usamos el formato de punto para decimales como pediste
-                    n_pre = st.number_input("Nuevo Precio ($):", value=float(str(datos_p['Precio']).replace(',','.')), step=0.01)
-                    
-                    if st.button("💾 Guardar Cambios"):
-                        # Actualizamos celdas específicas (Col 1=Producto, Col 4=Precio)
-                        sheet.update_cell(int(datos_p['fila_excel']), 1, n_nom)
-                        sheet.update_cell(int(datos_p['fila_excel']), 4, n_pre)
-                        st.success(f"✅ {n_nom} actualizado correctamente.")
-                        st.rerun()
-                
-                with col_del:
-                    st.markdown("### 🗑️ Dar de Baja")
-                    st.warning("Esta acción eliminará el producto de la vitrina pública.")
-                    if st.button("❌ Confirmar Eliminación"):
-                        sheet.delete_rows(int(datos_p['fila_excel']))
-                        st.error("Producto eliminado.")
-                        st.rerun()
+                if st.button("Actualizar"):
+                    sheet.update_cell(int(row_p['fila']), 4, nuevo_p) # Col 4 es Precio
+                    st.success("¡Precio actualizado!")
+                    st.rerun()
             else:
-                st.info(f"Aún no tienes productos registrados para **{tienda_user}**. ¡Usa la pestaña de Carga Masiva!")
+                st.info("Aún no tienes productos cargados.")
 
     with t2:
-        st.subheader("📤 Cargar Nuevo Inventario")
-        st.write("Sube tu archivo Excel con las columnas: `Producto`, `Tienda`, `Zona`, `Precio`, `WhatsApp`, `Categoria`, `Pago`, `Calificacion`, `Foto`.")
-        
-        up_ex = st.file_uploader("Seleccionar Excel (.xlsx)", type=['xlsx'])
-        if up_ex:
-            df_subida = pd.read_excel(up_ex)
-            # Forzamos que la columna Tienda sea la del usuario para evitar errores
-            df_subida['Tienda'] = tienda_user
-            
-            if st.button("🚀 Publicar en Vitrina"):
-                # Limpiamos precios (coma por punto) antes de subir
-                if 'Precio' in df_subida.columns:
-                    df_subida['Precio'] = df_subida['Precio'].astype(str).str.replace(',', '.').astype(float)
-                
-                sheet.append_rows(df_subida.values.tolist(), value_input_option='USER_ENTERED')
-                st.balloons()
-                st.success(f"¡Éxito! Has cargado {len(df_subida)} productos nuevos.")
-
-    with t3:
-        st.subheader("🚀 Impulsa tu marca en Maracaibo")
-        # Aquí va tu lógica de Marketing que ya tienes...
-        st.write("Selecciona un plan para destacar tus productos en la página principal.")
-
-
-# --- 8. SECCIÓN DE SOPORTE DINÁMICO (SIDEBAR) ---
-with st.sidebar:
-    st.divider()
-    st.subheader("🆘 ¿Necesitas ayuda?")
-    
-    # CONFIGURA TU NÚMERO AQUÍ
-    mi_whatsapp = "584127522988" 
-    
-    if st.session_state["logueado"]:
-        user = st.session_state["user_name"]
-        perfil = st.session_state["perfil"]
-        
-        # Personalizamos el mensaje según quién escribe
-        if perfil == "Admin":
-            mensaje_wa = "Hola, soy el Admin de Píllalo. Necesito asistencia técnica con la base de datos."
-        else:
-            mensaje_wa = f"Hola Píllalo, soy {user}. Necesito soporte con mi cuenta de socio y la carga de productos."
-        
-        # Codificamos el mensaje para URL
-        import urllib.parse
-        mensaje_encoded = urllib.parse.quote(mensaje_wa)
-        link_wa = f"https://wa.me/{mi_whatsapp}?text={mensaje_encoded}"
-        
-        # Botón estilizado con HTML/CSS para que sea verde WhatsApp
-        st.markdown(f"""
-            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
-                <div style="
-                    background-color: #25D366;
-                    color: white;
-                    padding: 12px;
-                    text-align: center;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 10px;
-                    border: none;
-                    cursor: pointer;
-                    transition: 0.3s;
-                ">
-                    💬 Hablar con Soporte
-                </div>
-            </a>
-        """, unsafe_allow_html=True)
-        
-        st.caption("Horario de atención: 8:00 AM - 8:00 PM")
-    else:
-        st.info("👋 ¡Hola! Si eres socio y tienes problemas para entrar, contacta al administrador del sistema.")
+        st.subheader("Carga Masiva vía Excel")
+        file = st.file_uploader("Sube tu archivo .xlsx", type=['xlsx'])
+        if file and st.button("🚀 Publicar Inventario"):
+            df_new = pd.read_excel(file)
+            df_new['Tienda'] = tienda_user # Seguridad: Forzamos su nombre
+            sheet.append_rows(df_new.values.tolist(), value_input_option='USER_ENTERED')
+            st.success(f"¡{len(df_new)} productos publicados!")
+            st.balloons()
 
 # --- PIE DE PÁGINA ---
 st.divider()
-st.caption(f"Píllalo 2026 | Business Intelligence Suite | Tasa BCV: {tasa_bcv:.2f} Bs.")
+st.caption(f"Píllalo 2026 | Business Intelligence | Tasa: {tasa_bcv:.2f} Bs.")
