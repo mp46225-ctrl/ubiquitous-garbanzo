@@ -404,8 +404,24 @@ elif st.session_state["perfil"] == "Empresa":
         c2.metric("WhatsApp", "85", "+5%")
 
     with t3:
-        st.subheader("💎 Suscripción")
-        st.info("Plan: PRO COMERCIO")
+        st.subheader("💎 Gestión de Plan")
+        col_plan1, col_plan2 = st.columns([1, 2])
+        
+        with col_plan1:
+            st.info(f"**Plan Actual:**\n\nPRO COMERCIO")
+            st.write("Vence: 15/03/2026")
+            
+        with col_plan2:
+            opcion_plan = st.selectbox("Cambiar o Cancelar Plan:", 
+                                     ["Mantener mi plan", "Plan Básico ($10/mes)", "Plan Pro ($25/mes)", "Plan Premium ($50/mes)", "CANCELAR SUSCRIPCIÓN"])
+            
+            if opcion_plan != "Mantener mi plan":
+                motivo = "Cambio de plan" if "Plan" in opcion_plan else "Cancelación"
+                msg_plan = f"Hola Píllalo, soy de la tienda *{tienda_user}*. Deseo solicitar: *{opcion_plan}*."
+                link_plan = f"https://wa.me/584127522988?text={urllib.parse.quote(msg_plan)}"
+                
+                st.warning(f"Para procesar tu solicitud de {motivo.lower()}, debes confirmar con un agente.")
+                st.markdown(f"""<a href="{link_plan}" target="_blank" style="text-decoration:none;"><div style="background-color:#FF4B4B;color:white;padding:10px;text-align:center;border-radius:8px;font-weight:bold;">📩 Confirmar Solicitud</div></a>""", unsafe_allow_html=True)
 
     with t4:
         st.subheader("📤 Carga Masiva")
