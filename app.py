@@ -126,64 +126,54 @@ elif st.session_state["perfil"] == "Admin":
 
 # --- PERFIL: EMPRESA ---
 elif st.session_state["perfil"] == "Empresa":
-    st.title("🏢 Portal Business")
-    t1, t2, t3 = st.tabs(["📦 Mis Productos", "📤 Carga & Tutorial", "🔥 Marketing"])
+    st.title("🏢 Portal Business - Píllalo")
+    
+    # Definimos las pestañas
+    t1, t2, t3 = st.tabs(["📦 Mis Productos", "📤 Carga & Tutorial", "🚀 Marketing"])
 
-   with t1:
+    with t1:
         st.subheader("📦 Gestión de Inventario por Sucursal")
         if sheet:
             # Traemos la data fresca
             df_e = pd.DataFrame(sheet.get_all_records())
             
             if not df_e.empty:
-                # Obtenemos la lista de todas las tiendas únicas en el Excel
+                # Obtenemos la lista de todas las tiendas únicas
                 todas_las_sucursales = sorted(df_e['Tienda'].unique())
                 
-                # Selector inteligente
                 st.write("Selecciona la sucursal que deseas gestionar:")
-                sucursal_sel = st.selectbox("📍 Sucursal:", todas_las_sucursales)
+                sucursal_sel = st.selectbox("📍 Sucursal detectada:", todas_las_sucursales)
                 
                 # Filtramos la data por la sucursal elegida
                 mis_datos = df_e[df_e['Tienda'] == sucursal_sel]
                 
                 if not mis_datos.empty:
-                    # Métricas rápidas de la sucursal
                     c_inv1, c_inv2 = st.columns(2)
-                    c_inv1.metric("Productos", len(mis_datos))
-                    # Calculamos el precio promedio solo para dar un dato extra
+                    c_inv1.metric("Productos en sistema", len(mis_datos))
+                    
                     try:
-                        promedio = mis_datos['Precio'].astype(str).str.replace(',', '.').astype(float).mean()
+                        # Limpieza de precios para el promedio
+                        precios_limpios = mis_datos['Precio'].astype(str).str.replace(',', '.').astype(float)
+                        promedio = precios_limpios.mean()
                         c_inv2.metric("Precio Promedio", f"${promedio:.2f}")
-                    except: pass
+                    except:
+                        c_inv2.metric("Precio Promedio", "N/A")
                     
                     st.divider()
                     st.write(f"📋 Inventario actual de: **{sucursal_sel}**")
                     st.dataframe(mis_datos, use_container_width=True)
-                    
-                    # Botón para descargar solo este inventario
-                    csv = mis_datos.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Exportar este inventario a CSV",
-                        data=csv,
-                        file_name=f"inventario_{sucursal_sel.replace(' ', '_')}.csv",
-                        mime='text/csv',
-                    )
                 else:
-                    st.warning("No hay productos registrados para esta sucursal.")
+                    st.warning("No hay productos para esta sucursal.")
             else:
                 st.info("Aún no hay datos cargados en el sistema.")
 
     with t2:
         st.subheader("🚀 Guía de Carga Rápida")
-        st.info("Para que tus productos luzcan bien, usa el generador de enlaces de abajo.")
-        
         # --- GENERADOR DE LINKS ---
-        with st.expander("🖼️ GENERADOR DE LINKS PARA FOTOS (Haz clic aquí)"):
-            st.write("1. Sube tu foto. 2. Copia el link. 3. Pégalo en el Excel.")
+        with st.expander("🖼️ GENERADOR DE LINKS PARA FOTOS"):
             foto_file = st.file_uploader("Elige imagen", type=['jpg','png','jpeg'])
             if foto_file and st.button("Generar Link"):
-                # Reemplaza con tu API KEY de ImgBB
-                api_key = "1f2081c8821957a63c9a0c0df237fdba" 
+                api_key = "TU_API_KEY_AQUI" 
                 res = requests.post("https://api.imgbb.com/1/upload", {"key": api_key}, files={"image": foto_file.getvalue()})
                 if res.json()["success"]:
                     link = res.json()["data"]["url"]
@@ -191,6 +181,21 @@ elif st.session_state["perfil"] == "Empresa":
                     st.code(link)
                 else: st.error("Error al subir")
 
+        st.divider()
+        # --- CARGA EXCEL ---
+        up = st.file_uploader("Sube tu archivo Excel", type=['xlsx'])
+        if up and st.button("🚀 Publicar Inventario"):
+            df_up = pd.read_excel(up)
+            # Normalizamos precios a punto decimal antes de subir
+            df_up['Precio'] = df_up['Precio'].astype(str).str.replace(',', '.').astype(float)
+            df_up['Fecha'] = datetime.now().strftime("%d/%m %I:%M %p")
+            sheet.append_rows(df_up.values.tolist(), value_input_option='USER_ENTERED')
+            st.success("¡Productos publicados!")
+
+    with t3:
+        st.subheader("🚀 Planes Premium")
+        # Aquí va el código de los planes Bronce, Plata y Oro que ya tenemos
+        st.write("Selecciona un plan para destacar tus productos.")
         st.divider()
         
         # --- CARGA EXCEL ---
