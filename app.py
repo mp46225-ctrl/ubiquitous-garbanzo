@@ -65,10 +65,16 @@ with st.sidebar:
         st.subheader("🔑 Acceso")
         u_input = st.text_input("Usuario")
         p_input = st.text_input("Contraseña", type="password")
-        if st.button("Entrar"):
+       if st.button("Entrar"):
             try:
                 user_sheet = spreadsheet.worksheet("Usuarios")
                 usuarios_df = pd.DataFrame(user_sheet.get_all_records())
+                
+                # ... resto del codigo de validación ...
+            except gspread.exceptions.WorksheetNotFound:
+                st.error("❌ La pestaña 'Usuarios' no existe en Google Sheets.")
+            except Exception as e:
+                st.error(f"❌ Error inesperado: {e}")
                 
                 # Buscamos coincidencia
                 match = usuarios_df[(usuarios_df['Usuario'] == u_input) & (usuarios_df['Clave'].astype(str) == p_input)]
