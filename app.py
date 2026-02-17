@@ -110,38 +110,56 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (INTERFAZ PREMIUM) ---
+# --- PERFIL: INVITADO (INTERFAZ LIMPIA Y PROFESIONAL) ---
 if st.session_state["perfil"] == "Invitado":
-    # CSS para la cinta transportadora y diseño de tarjetas
+    # CSS para diseño limpio y tarjetas claras
     st.markdown("""
         <style>
+        /* Contenedor de Destacados */
         .scroll-container {
             display: flex;
             flex-direction: row;
             overflow-x: auto;
             white-space: nowrap;
-            padding: 10px 5px;
+            padding: 10px 0px;
             gap: 15px;
             scrollbar-width: none;
         }
         .scroll-container::-webkit-scrollbar { display: none; }
+        
+        /* Items Destacados (Pequeños) */
         .scroll-item {
             flex: 0 0 auto;
-            width: 130px;
-            background: #1e1e1e;
-            border-radius: 12px;
-            padding: 10px;
+            width: 110px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 8px;
             text-align: center;
-            border: 1px solid #333;
+            border: 1px solid #eee;
         }
+        
+        /* Tarjetas Principales (Matriz) */
         .product-card {
-            background: #1e1e1e;
-            padding: 15px;
-            border-radius: 15px;
-            border: 1px solid #333;
-            margin-bottom: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #efefef;
+            margin-bottom: 5px;
             text-align: center;
+            box-shadow: 0px 2px 5px rgba(0,0,0,0.05);
         }
+        
+        /* Imágenes Proporcionadas */
+        .img-fix {
+            width: 100%;
+            height: 140px;
+            object-fit: contain; /* Evita que se estiren */
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        h4, h3, p { color: #333 !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -153,18 +171,17 @@ if st.session_state["perfil"] == "Invitado":
             # 1. BUSCADOR
             query = st.text_input("🔎 ¿Qué buscas hoy?", placeholder="Ej: Harina, Refresco...", key="main_search")
             
-            # Aplicar Filtros
             df_filtered = df.copy()
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-            # 2. CINTA TRANSPORTADORA (PRODUCTOS TOP)
+            # 2. CINTA TRANSPORTADORA (DESTACADOS)
             if 'Prioridad' in df_filtered.columns and not query:
                 df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
                 top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
                 
                 if not top_items.empty:
-                    st.markdown("### 🔥 Destacados Píllalo")
+                    st.markdown("### 🔥 Destacados")
                     scroll_html = '<div class="scroll-container">'
                     for _, row in top_items.iterrows():
                         try:
@@ -172,23 +189,22 @@ if st.session_state["perfil"] == "Invitado":
                             p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
                         except: p_float = 0.00
                         img_url = row.get('Foto', "https://via.placeholder.com/150")
+                        
                         scroll_html += f'''
                             <div class="scroll-item">
-                                <img src="{img_url}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
-                                <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-                                <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
+                                <img src="{img_url}" style="width:80px; height:80px; object-fit:contain; border-radius:5px; background:white;">
+                                <div style="font-size:11px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#333;">{row['Producto']}</div>
+                                <div style="color:#007BFF; font-weight:bold; font-size:12px;">${p_float:.2f}</div>
                             </div>
                         '''
                     scroll_html += '</div>'
-                    st.markdown(scroll_html, unsafe_allow_html=True)
+                    st.markdown(scroll_html, unsafe_allow_html=True) # <-- ESTO QUITA EL ERROR EN PANTALLA
                     st.divider()
 
-           # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
-            st.subheader("Todos los productos")
-            
-            cols = st.columns(3)
-            # Usamos reset_index para asegurar que idx siempre sea un número limpio
+            # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
+            st.subheader("Catálogo")
             df_display = df_filtered.reset_index(drop=True)
+            cols = st.columns(3)
             
             for idx, row in df_display.iterrows():
                 with cols[idx % 3]:
@@ -197,27 +213,25 @@ if st.session_state["perfil"] == "Invitado":
                         p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
                     except: p_usd = 0.00
                     
-                    # Tarjeta de producto
+                    # Imagen y Detalle
                     st.markdown(f"""
                         <div class="product-card">
-                            <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; height:140px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
-                            <h4 style="margin:0; font-size:15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;">{row['Producto']}</h4>
-                            <p style="color:gray; font-size:11px; margin:2px 0;">🏪 {row['Tienda']}</p>
-                            <h3 style="margin:5px 0; color:#00D1FF;">${p_usd:.2f}</h3>
-                            <p style="font-size:12px; color:#aaa; margin-bottom:10px;">{p_usd * tasa_bcv:.2f} Bs.</p>
+                            <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" class="img-fix">
+                            <div style="font-size:14px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+                            <div style="font-size:11px; color:gray;">{row['Tienda']}</div>
+                            <div style="font-size:18px; font-weight:bold; color:#28a745; margin-top:5px;">${p_usd:.2f}</div>
+                            <div style="font-size:11px; color:#555;">{p_usd * tasa_bcv:.2f} Bs.</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # --- BOTÓN DE WHATSAPP (HTML VERSION - ANTI ERRORES) ---
-                    tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
-                    if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
-                    
-                    msg = urllib.parse.quote(f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* que vi en Píllalo.")
-                    link_pedido = f"https://wa.me/{tel_tienda}?text={msg}"
+                    # Botón de WhatsApp
+                    tel = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
+                    if not tel or tel == 'nan': tel = "584127522988"
+                    msg = urllib.parse.quote(f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo.")
                     
                     st.markdown(f"""
-                        <a href="{link_pedido}" target="_blank" style="text-decoration:none;">
-                            <div style="background-color:#25D366; color:white; padding:8px; text-align:center; border-radius:8px; font-weight:bold; font-size:14px; margin-bottom:20px;">
+                        <a href="https://wa.me/{tel}?text={msg}" target="_blank" style="text-decoration:none;">
+                            <div style="background-color:#25D366; color:white; padding:10px; text-align:center; border-radius:8px; font-weight:bold; font-size:13px; margin-bottom:25px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                                 🛒 Pedir
                             </div>
                         </a>
