@@ -251,7 +251,7 @@ if st.session_state["perfil"] == "Invitado":
                             st.session_state["favoritos"].remove(f_row['Producto'])
                             st.rerun()
 
-        # --- CARRITO SIDEBAR ---
+        # --- CARRITO SIDEBAR (VERSIÓN BLINDADA) ---
         if st.session_state["carrito"]:
             with st.sidebar:
                 st.header("🛒 Mi Pedido")
@@ -272,7 +272,6 @@ if st.session_state["perfil"] == "Invitado":
                         msg_wa = f" *📦 NUEVO PEDIDO - PÍLLALO* ⚡\n"
                         msg_wa += f"----------------------------------\n"
                         msg_wa += f"🏠 *Tienda:* {tienda.upper()}\n"
-                        msg_wa += f"----------------------------------\n"
                         
                         for item in productos:
                             p_name = item['nombre']
@@ -287,27 +286,41 @@ if st.session_state["perfil"] == "Invitado":
                         
                         msg_wa += f"----------------------------------\n"
                         msg_wa += f"💰 *TOTAL:* ${subtotal_tienda:.2f}\n"
-                        msg_wa += f"⚡ _Vitrina Maracaibo_"
                         
                         tel_destino = productos[0]['info']['tel']
                         link_final = f"https://wa.me/{tel_destino}?text={urllib.parse.quote(msg_wa)}"
                         
-                        if st.button(f"🚀 Pedir a {tienda}", key=f"btn_{tienda}", use_container_width=True):
+                        # --- PASO 1: REGISTRAR ---
+                        if st.button(f"1. Registrar Pedido {tienda}", key=f"reg_{tienda}", use_container_width=True):
                             try:
                                 v_sheet = spreadsheet.worksheet("Ventas")
                                 v_sheet.append_row([
                                     fecha_ticket, tienda, subtotal_tienda, "Pendiente", 
                                     resumen_productos[:-2], tel_destino
                                 ], value_input_option='USER_ENTERED')
-                                st.markdown(f'<meta http-equiv="refresh" content="0;URL={link_final}">', unsafe_allow_html=True)
-                            except Exception as e:
-                                st.error("Error al registrar venta.")
-                                st.markdown(f"[Abrir WhatsApp]({link_final})")
+                                st.session_state[f"pedido_ok_{tienda}"] = True
+                                st.toast("Venta registrada en sistema")
+                            except:
+                                st.error("Error al guardar, usa el botón de abajo.")
+                                st.session_state[f"pedido_ok_{tienda}"] = True
+
+                        # --- PASO 2: WHATSAPP (Aparece solo después de registrar) ---
+                        if st.session_state.get(f"pedido_ok_{tienda}"):
+                            st.markdown(f"""
+                                <a href="{link_final}" target="_blank" style="text-decoration:none;">
+                                    <div style="background-color:#25D366;color:white;padding:12px;text-align:center;border-radius:10px;font-weight:bold;margin-bottom:10px;">
+                                        2. ENVIAR WHATSAPP 📲
+                                    </div>
+                                </a>
+                            """, unsafe_allow_html=True)
 
                 st.divider()
                 st.metric("TOTAL GENERAL", f"${total_general:.2f}")
                 if st.button("Vaciar Todo 🗑️", use_container_width=True):
                     st.session_state["carrito"] = {}
+                    # Limpiar estados de botones
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("pedido_ok_"): del st.session_state[k]
                     st.rerun()
 
 # --- PERFIL: EMPRESA ---
