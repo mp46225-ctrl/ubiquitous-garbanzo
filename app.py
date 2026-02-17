@@ -110,89 +110,84 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (DISEÑO PROFESIONAL Y ORDENADO) ---
+# --- PERFIL: INVITADO (CÓDIGO LIMPIO SIN ERRORES) ---
 if st.session_state["perfil"] == "Invitado":
-    # 1. CSS PARA ORDENAR TODO (Colores Píllalo)
+    # 1. CSS PARA ORDENAR TODO
     st.markdown("""
         <style>
-        /* Contenedor principal para que no se pegue a los bordes */
-        .main-container { padding: 10px; }
-        
-        /* Logo centrado */
-        .logo-container {
-            display: flex; justify-content: center; margin-bottom: 20px;
-        }
-        
-        /* Tarjetas de productos ordenadas */
         .product-card {
             background: white;
             border-radius: 15px;
             padding: 15px;
             border: 1px solid #f0f0f0;
-            border-top: 5px solid #FF8C00; /* Naranja Píllalo */
+            border-top: 5px solid #FF8C00;
             text-align: center;
-            margin-bottom: 20px;
-            height: 320px; /* Altura fija para que todas se vean iguales */
+            margin-bottom: 10px;
+            height: 300px;
             box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
         }
-        
         .img-fix {
-            width: 100%; height: 130px; object-fit: contain; margin-bottom: 10px;
+            width: 100%; height: 120px; object-fit: contain; margin-bottom: 10px;
         }
-        
-        .price-style {
-            color: #001F3F; font-size: 20px; font-weight: bold; margin: 5px 0;
-        }
-        
-        .bcv-style {
-            color: #666; font-size: 12px; margin-bottom: 10px;
-        }
-        
-        /* Botón de Pedir estilo Píllalo */
         .btn-pedir {
             background-color: #FF8C00; color: white !important;
             padding: 10px; border-radius: 10px; text-decoration: none;
-            font-weight: bold; display: block; transition: 0.3s;
+            font-weight: bold; display: block; text-align: center;
+            margin-bottom: 25px;
         }
-        .btn-pedir:hover { background-color: #e67e00; }
         </style>
     """, unsafe_allow_html=True)
 
-   # 1. LOGO Y ENCABEZADO (CORREGIDO)
-    # He extraído el link directo para que la imagen cargue de una vez
-    logo_pillalo = "https://i.ibb.co/cKnXPjwT/pillalo-logo.png" 
+    # 2. ENCABEZADO Y LOGO
+    # Nota: Asegúrate de que esta URL sea el "Enlace Directo" de tu logo
+    logo_url = "https://i.ibb.co/4Z9YF8YF/pillalo.png" 
     
     st.markdown(f"""
         <div style="display: flex; justify-content: center; margin-bottom: 10px;">
-            <img src="https://i.ibb.co/4Z9YF8YF/pillalo.png" width="200">
+            <img src="{logo_url}" width="200">
         </div>
         <p style="text-align: center; color: #001F3F; font-weight: bold; font-style: italic; margin-top: -10px;">
             ¡Píllalo, pedilo y listo!
         </p>
     """, unsafe_allow_html=True)
 
-            # 4. MATRIZ DE PRODUCTOS (ORDENADA)
-            # Usamos 2 columnas para móviles o 3 para PC de forma automática
+    if sheet:
+        df = pd.DataFrame(sheet.get_all_records())
+        if not df.empty:
+            # 3. BUSCADOR
+            query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy?", key="search_bar")
+            
+            df_filtered = df.copy()
+            if query:
+                df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
+
+            st.divider()
+
+            # 4. MATRIZ DE PRODUCTOS (SIN ERRORES DE IDENTACIÓN)
+            df_display = df_filtered.reset_index(drop=True)
             cols = st.columns(2 if query else 3)
             
-            for idx, row in df_filtered.reset_index(drop=True).iterrows():
-                with cols[idx % len(cols)]:
+            for idx, row in df_display.iterrows():
+                # El truco para que no haya error de indentación es que todo esté alineado aquí
+                col_idx = idx % (2 if query else 3)
+                with cols[col_idx]:
                     try:
                         p_raw = str(row.get('Precio', '0')).replace(',', '.')
                         p_usd = float(re.sub(r'[^\d.]', '', p_raw))
-                    except: p_usd = 0.0
+                    except:
+                        p_usd = 0.0
                     
-                    # HTML de la Tarjeta
+                    # Tarjeta de producto
                     st.markdown(f"""
                         <div class="product-card">
                             <img src="{row.get('Foto', '')}" class="img-fix">
-                            <div style="font-weight: bold; color: #333; height: 40px; overflow: hidden;">{row['Producto']}</div>
-                            <div class="price-style">${p_usd:.2f}</div>
-                            <div class="bcv-style">{(p_usd * tasa_bcv):.2f} Bs.</div>
+                            <div style="font-weight: bold; color: #333; height: 40px; overflow: hidden; font-size:14px;">{row['Producto']}</div>
+                            <div style="color: #001F3F; font-size: 18px; font-weight: bold;">${p_usd:.2f}</div>
+                            <div style="color: #666; font-size: 11px;">{(p_usd * tasa_bcv):.2f} Bs.</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Botón WhatsApp debajo de la tarjeta para que no rompa el diseño
+                    # Botón de Pedir
                     tel = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
                     msg = urllib.parse.quote(f"¡Epa! Pillé el producto *{row['Producto']}* en la app. ¿Está disponible?")
                     
@@ -200,8 +195,8 @@ if st.session_state["perfil"] == "Invitado":
                         <a href="https://wa.me/{tel}?text={msg}" target="_blank" class="btn-pedir">
                             🛒 Pedir
                         </a>
-                        <br>
                     """, unsafe_allow_html=True)
+
 # --- PERFIL: EMPRESA ---
 elif st.session_state["perfil"] == "Empresa":
     tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
