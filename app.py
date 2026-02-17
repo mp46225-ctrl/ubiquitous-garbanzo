@@ -76,32 +76,33 @@ with st.sidebar:
         if st.button("Entrar"):
             try:
                 user_sheet = spreadsheet.worksheet("Usuarios")
-                usuarios_df = pd.DataFrame(user_sheet.get_all_records())
+                data = user_sheet.get_all_records()
                 
-                # Buscamos coincidencia
-                match = usuarios_df[(usuarios_df['Usuario'] == u_input) & (usuarios_df['Clave'].astype(str) == p_input)]
-                
-                if not match.empty:
-                    user_data = match.iloc[0]
-                    st.session_state.update({
-                        "logueado": True, 
-                        "perfil": user_data['Perfil'], 
-                        "user_name": u_input,
-                        "tienda_asociada": user_data.get('Tienda_Asociada', 'Todas')
-                    })
-                    st.success(f"Bienvenido {u_input}")
-                    st.rerun()
+                if not data:
+                    st.error("❌ La hoja 'Usuarios' está vacía. Agrega al menos un usuario en la fila 2.")
                 else:
-                    st.error("Credenciales incorrectas")
+                    usuarios_df = pd.DataFrame(data)
+                    # Verificamos si las columnas existen
+                    columnas_necesarias = ['Usuario', 'Clave', 'Perfil']
+                    if all(col in usuarios_df.columns for col in columnas_necesarias):
+                        match = usuarios_df[(usuarios_df['Usuario'] == u_input) & (usuarios_df['Clave'].astype(str) == p_input)]
+                        
+                        if not match.empty:
+                            user_data = match.iloc[0]
+                            st.session_state.update({
+                                "logueado": True, 
+                                "perfil": user_data['Perfil'], 
+                                "user_name": u_input,
+                                "tienda_asociada": user_data.get('Tienda_Asociada', 'Todas')
+                            })
+                            st.success(f"Bienvenido {u_input}")
+                            st.rerun()
+                        else:
+                            st.error("🚫 Usuario o clave incorrectos.")
+                    else:
+                        st.error(f"⚠️ Faltan columnas en el Excel. Revisa que existan: {columnas_necesarias}")
             except Exception as e:
-                st.error("Error al validar usuarios. ¿Existe la pestaña 'Usuarios'?")
-    else:
-        st.write(f"Usuario: **{st.session_state['user_name']}**")
-        st.write(f"Perfil: **{st.session_state['perfil']}**")
-        if st.button("Cerrar Sesión"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+                st.error(f"❌ Error al leer la pestaña 'Usuarios': {e}")
 
     # SOPORTE DINÁMICO EN EL SIDEBAR
     st.divider()
