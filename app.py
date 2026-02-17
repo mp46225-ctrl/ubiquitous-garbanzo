@@ -61,7 +61,8 @@ def registrar_estadistica(evento, detalle):
         est_sheet = spreadsheet.worksheet("Estadisticas")
         fecha = datetime.now().strftime("%d/%m/%Y %I:%M %p")
         est_sheet.append_row([fecha, evento, detalle, "Web"], value_input_option='USER_ENTERED')
-    except: pass
+    except: 
+        pass
 
 # --- 6. BARRA LATERAL (LOGO, TASA Y LOGIN) ---
 with st.sidebar:
@@ -158,10 +159,8 @@ if st.session_state["perfil"] == "Invitado":
             st.error("Error cargando base de datos.")
             st.stop()
 
-        # 1. BUSCADOR
         query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
 
-        # 2. 🔥 RECOMENDADOS
         if not query:
             df['Prioridad'] = pd.to_numeric(df['Prioridad'], errors='coerce').fillna(0)
             top_items = df[df['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False).head(5)
@@ -180,12 +179,13 @@ if st.session_state["perfil"] == "Invitado":
                         ''', unsafe_allow_html=True)
                         if st.button("➕", key=f"t_add_{idx}", use_container_width=True):
                             pn = row['Producto']
-                            if pn in st.session_state["carrito"]: st.session_state["carrito"][pn]['cant'] += 1
-                            else: st.session_state["carrito"][pn] = {'precio': p_f_t, 'tel': row['Telefono'], 'tienda': row['Tienda'], 'cant': 1}
+                            if pn in st.session_state["carrito"]: 
+                                st.session_state["carrito"][pn]['cant'] += 1
+                            else: 
+                                st.session_state["carrito"][pn] = {'precio': p_f_t, 'tel': row['Telefono'], 'tienda': row['Tienda'], 'cant': 1}
                             st.rerun()
                 st.divider()
 
-        # 3. CATÁLOGO Y FAVORITOS
         tab_cat, tab_fav = st.tabs(["🛒 Catálogo General", "❤️ Mis Favoritos"])
 
         with tab_cat:
@@ -251,12 +251,10 @@ if st.session_state["perfil"] == "Invitado":
                             st.session_state["favoritos"].remove(f_row['Producto'])
                             st.rerun()
 
-        # --- 4. SIDEBAR CARRITO MULTI-TIENDA (CORREGIDO) ---
+        # --- CARRITO SIDEBAR ---
         if st.session_state["carrito"]:
             with st.sidebar:
                 st.header("🛒 Mi Pedido")
-                
-                # Agrupar productos por tienda
                 tiendas_en_carrito = {}
                 for p_nombre, info in st.session_state["carrito"].items():
                     t_nombre = info.get('tienda', 'Tienda Desconocida')
@@ -265,17 +263,16 @@ if st.session_state["perfil"] == "Invitado":
                     tiendas_en_carrito[t_nombre].append({'nombre': p_nombre, 'info': info})
 
                 total_general = 0
-                
                 for tienda, productos in tiendas_en_carrito.items():
                     with st.expander(f"🏪 {tienda}", expanded=True):
                         subtotal_tienda = 0
-                        # Formato de Ticket para el mensaje
-                        fecha_ticket = datetime.now().strftime("%d/%m/%Y")
-                        msg_whatsapp = f" *📦 NUEVO PEDIDO - PÍLLALO* ⚡\n"
-                        msg_whatsapp += f"----------------------------------\n"
-                        msg_whatsapp += f"🏠 *Tienda:* {tienda.upper()}\n"
-                        msg_whatsapp += f"📅 *Fecha:* {fecha_ticket}\n"
-                        msg_whatsapp += f"----------------------------------\n"
+                        resumen_productos = ""
+                        fecha_ticket = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+                        
+                        msg_wa = f" *📦 NUEVO PEDIDO - PÍLLALO* ⚡\n"
+                        msg_wa += f"----------------------------------\n"
+                        msg_wa += f"🏠 *Tienda:* {tienda.upper()}\n"
+                        msg_wa += f"----------------------------------\n"
                         
                         for item in productos:
                             p_name = item['nombre']
@@ -283,45 +280,32 @@ if st.session_state["perfil"] == "Invitado":
                             sub_item = info['precio'] * info['cant']
                             subtotal_tienda += sub_item
                             total_general += sub_item
-                            
                             st.write(f"**{p_name}**")
                             st.caption(f"{info['cant']} x ${info['precio']:.2f} = ${sub_item:.2f}")
-                            # Agregando al ticket de texto
-                            msg_whatsapp += f"✅ {info['cant']}x {p_name}\n"
-                            msg_whatsapp += f"      Subt: ${sub_item:.2f}\n"
+                            msg_wa += f"✅ {info['cant']}x {p_name}\n"
+                            resumen_productos += f"{info['cant']}x {p_name}, "
                         
-                        msg_whatsapp += f"----------------------------------\n"
-                        msg_whatsapp += f"💰 *TOTAL A PAGAR:* ${subtotal_tienda:.2f}\n"
-                        msg_whatsapp += f"----------------------------------\n"
-                        msg_whatsapp += f"⚡ _Enviado desde Vitrina Maracaibo_"
+                        msg_wa += f"----------------------------------\n"
+                        msg_wa += f"💰 *TOTAL:* ${subtotal_tienda:.2f}\n"
+                        msg_wa += f"⚡ _Vitrina Maracaibo_"
                         
-                        whatsapp_tienda = productos[0]['info']['tel']
+                        tel_destino = productos[0]['info']['tel']
+                        link_final = f"https://wa.me/{tel_destino}?text={urllib.parse.quote(msg_wa)}"
                         
-                        # CREACIÓN DEL ENLACE SEGURO
-                        link_final = f"https://wa.me/{whatsapp_tienda}?text={urllib.parse.quote(msg_whatsapp)}"
-                        
-                        # Botón con link directo
-                        st.markdown(f"""
-                            <a href="{link_final}" target="_blank" style="text-decoration: none;">
-                                <div style="
-                                    background-color: #25D366;
-                                    color: white;
-                                    padding: 10px 20px;
-                                    text-align: center;
-                                    border-radius: 8px;
-                                    font-weight: bold;
-                                    margin-top: 10px;
-                                    cursor: pointer;
-                                    border: none;">
-                                    🚀 Enviar Pedido a {tienda}
-                                </div>
-                            </a>
-                        """, unsafe_allow_html=True)
-                
+                        if st.button(f"🚀 Pedir a {tienda}", key=f"btn_{tienda}", use_container_width=True):
+                            try:
+                                v_sheet = spreadsheet.worksheet("Ventas")
+                                v_sheet.append_row([
+                                    fecha_ticket, tienda, subtotal_tienda, "Pendiente", 
+                                    resumen_productos[:-2], tel_destino
+                                ], value_input_option='USER_ENTERED')
+                                st.markdown(f'<meta http-equiv="refresh" content="0;URL={link_final}">', unsafe_allow_html=True)
+                            except Exception as e:
+                                st.error("Error al registrar venta.")
+                                st.markdown(f"[Abrir WhatsApp]({link_final})")
+
                 st.divider()
                 st.metric("TOTAL GENERAL", f"${total_general:.2f}")
-                st.caption(f"Ref: {(total_general * tasa_bcv):.2f} Bs.")
-                
                 if st.button("Vaciar Todo 🗑️", use_container_width=True):
                     st.session_state["carrito"] = {}
                     st.rerun()
@@ -331,7 +315,7 @@ elif st.session_state["perfil"] == "Empresa":
     tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
     st.title(f"🏢 Portal: {tienda_user}")
     
-    t1, t2, t3, t4 = st.tabs(["📦 Inventario", "📈 Marketing", "💎 Mi Plan", "📤 Carga Masiva"])
+    t1, t_v, t2, t3, t4 = st.tabs(["📦 Inventario", "💰 Ventas", "📈 Marketing", "💎 Mi Plan", "📤 Carga Masiva"])
 
     with t1:
         df_full = pd.DataFrame(sheet.get_all_records())
@@ -365,6 +349,40 @@ elif st.session_state["perfil"] == "Empresa":
                 sheet.update_cell(int(row_p['fila']), 4, str(nuevo_p).replace(',', '.'))
                 st.success("¡Actualizado!")
                 st.rerun()
+
+    with t_v:
+        st.subheader("📑 Control de Pedidos (WhatsApp)")
+        try:
+            v_sheet = spreadsheet.worksheet("Ventas")
+            data_v = v_sheet.get_all_records()
+            if not data_v:
+                st.info("Aún no hay registros en la hoja de Ventas.")
+            else:
+                todas_ventas = pd.DataFrame(data_v)
+                mis_ventas = todas_ventas[todas_ventas['Tienda'] == tienda_user].copy()
+                if mis_ventas.empty:
+                    st.info("No hay pedidos registrados todavía.")
+                else:
+                    mis_ventas['fila_real'] = mis_ventas.index + 2
+                    c1, c2 = st.columns(2)
+                    pendientes = mis_ventas[mis_ventas['Estatus'] == 'Pendiente']
+                    concretadas = mis_ventas[mis_ventas['Estatus'] == 'Concretado']
+                    c1.metric("Pendientes", len(pendientes))
+                    c2.metric("Concretadas", len(concretadas), f"${pd.to_numeric(concretadas['Monto_USD']).sum():.2f}")
+                    
+                    st.divider()
+                    for idx, row in pendientes.iterrows():
+                        with st.expander(f"🛒 Pedido: {row['Productos'][:30]}... (${row['Monto_USD']})"):
+                            st.write(f"**Fecha:** {row['Fecha']}")
+                            st.write(f"**Detalle:** {row['Productos']}")
+                            if st.button(f"Marcar como Vendido ✅", key=f"v_conf_{idx}"):
+                                v_sheet.update_cell(int(row['fila_real']), 4, "Concretado")
+                                st.success("¡Venta registrada!")
+                                st.rerun()
+                    st.subheader("Historial Completo")
+                    st.dataframe(mis_ventas.drop(columns=['fila_real']), use_container_width=True)
+        except Exception as e:
+            st.warning("Error con la hoja 'Ventas'.")
 
     with t2:
         st.subheader("📊 Rendimiento")
