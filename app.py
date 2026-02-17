@@ -179,33 +179,83 @@ elif st.session_state["perfil"] == "Empresa":
             st.success("¡Publicado!")
 
     with t3:
-        st.subheader("🚀 Píllalo Boost")
-        c_b, c_s, c_g = st.columns(3)
-        with c_b: 
-            st.info("### 🥉 BRONCE\n$5/mes")
-            if st.button("Elegir Bronce"): st.session_state["plan"] = "BRONCE"
-        with c_s: 
-            st.success("### 🥈 PLATA\n$15/mes")
-            if st.button("Elegir Plata"): st.session_state["plan"] = "PLATA"
-        with c_g: 
-            st.warning("### 🥇 ORO\n$40/mes")
-            if st.button("Elegir Oro"): st.session_state["plan"] = "ORO"
+        st.subheader("🚀 Píllalo Boost - Impulsa tus Ventas")
+        st.write("Elige cómo quieres destacar en la plataforma para vender más rápido.")
         
+        # --- SECCIÓN DE PLANES PREMIUM ---
+        st.markdown("### 💎 Planes Premium")
+        col_bronze, col_silver, col_gold = st.columns(3)
+        
+        with col_bronze:
+            st.info("### 🥉 BRONCE")
+            st.markdown("""
+            **Costo: $5 / mes**
+            * ✅ Sello de 'Tienda Verificada'.
+            * ✅ Apareces arriba de los 'Invitados'.
+            * ✅ Soporte técnico vía WhatsApp.
+            """)
+            if st.button("Elegir Bronce", key="plan_b"):
+                st.session_state["plan"] = "BRONCE"
+                st.toast("Has seleccionado el Plan Bronce")
+
+        with col_silver:
+            st.success("### 🥈 PLATA")
+            st.markdown("""
+            **Costo: $15 / mes**
+            * ✅ Todo lo del plan Bronce.
+            * ✅ **3 Ofertas Flash** al mes.
+            * ✅ Logo de tu tienda en la vitrina.
+            """)
+            if st.button("Elegir Plata", key="plan_s"):
+                st.session_state["plan"] = "PLATA"
+                st.toast("Has seleccionado el Plan Plata")
+
+        with col_gold:
+            st.warning("### 🥇 ORO")
+            st.markdown("""
+            **Costo: $40 / mes**
+            * ✅ Todo lo del plan Plata.
+            * ✅ **Ofertas Flash Ilimitadas**.
+            * ✅ Banner publicitario en el inicio.
+            * ✅ Analítica de clics semanal.
+            """)
+            if st.button("Elegir Oro", key="plan_g"):
+                st.session_state["plan"] = "ORO"
+                st.toast("Has seleccionado el Plan Oro")
+
         st.divider()
-        col_f, col_p = st.columns(2)
-        with col_f:
-            st.markdown("### 🔥 Oferta Flash")
+
+        # --- SECCIÓN DE OFERTAS FLASH Y PAGO ---
+        col_flash, col_pago = st.columns(2)
+        
+        with col_flash:
+            st.markdown("### 🔥 Activar Oferta Flash")
+            st.caption("Destaca un producto con un cronómetro y precio especial por 24h.")
             if not mis_datos.empty:
-                prod_f = st.selectbox("Producto Flash:", mis_datos['Producto'].unique())
-                if st.button("Lanzar Flash 🚀"): st.success("Solicitud enviada")
-        with col_p:
-            st.markdown("### 💳 Confirmar Pago")
+                prod_f = st.selectbox("Selecciona Producto:", mis_datos['Producto'].unique(), key="sel_flash")
+                desc = st.slider("Descuento a aplicar (%)", 5, 50, 20)
+                if st.button("🚀 Lanzar Oferta Flash"):
+                    st.success(f"Solicitud enviada para {prod_f}.")
+                    registrar_estadistica("MARKETING_FLASH", f"{sucursal_sel} solicita flash para {prod_f} (-{desc}%)")
+            else:
+                st.warning("Carga productos primero para activar ofertas.")
+
+        with col_pago:
+            st.markdown("### 💳 Confirmar suscripción")
             p_sel = st.session_state.get("plan", "Ninguno")
-            st.write(f"Plan: **{p_sel}**")
-            ref = st.text_input("Referencia:")
-            if st.button("Confirmar 🚀") and ref:
-                registrar_estadistica("PAGO", f"{p_sel} - Ref: {ref}")
-                st.balloons()
+            st.write(f"Plan seleccionado: **{p_sel}**")
+            
+            if p_sel != "Ninguno":
+                metodo = st.selectbox("Método de Pago:", ["Pago Móvil", "Zelle", "Efectivo (Oficina)", "Binance P2P"])
+                ref = st.text_input("Número de Referencia / Comprobante:", placeholder="Ej: 12345678")
+                
+                if st.button("Confirmar Pago y Activar 🚀"):
+                    if ref:
+                        st.balloons()
+                        st.success("¡Recibido! Verificaremos el pago y activaremos tus beneficios.")
+                        registrar_estadistica("PAGO_PREMIUM", f"{st.session_state['user_name']} pagó {p_sel} via {metodo} - Ref: {ref}")
+                    else:
+                        st.error("Por favor ingresa el número de referencia.")
 
 st.divider()
 st.caption(f"Píllalo 2026 - Maracaibo | Tasa BCV: {tasa_bcv:.2f} Bs.")
