@@ -110,56 +110,30 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (INTERFAZ LIMPIA Y PROFESIONAL) ---
+# --- PERFIL: INVITADO (VERSIÓN FINAL PULIDA) ---
 if st.session_state["perfil"] == "Invitado":
-    # CSS para diseño limpio y tarjetas claras
     st.markdown("""
         <style>
-        /* Contenedor de Destacados */
         .scroll-container {
-            display: flex;
-            flex-direction: row;
-            overflow-x: auto;
-            white-space: nowrap;
-            padding: 10px 0px;
-            gap: 15px;
-            scrollbar-width: none;
+            display: flex; flex-direction: row; overflow-x: auto;
+            white-space: nowrap; padding: 10px 0px; gap: 15px; scrollbar-width: none;
         }
         .scroll-container::-webkit-scrollbar { display: none; }
-        
-        /* Items Destacados (Pequeños) */
         .scroll-item {
-            flex: 0 0 auto;
-            width: 110px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 8px;
-            text-align: center;
-            border: 1px solid #eee;
+            flex: 0 0 auto; width: 110px; background: #ffffff;
+            border-radius: 10px; padding: 8px; text-align: center;
+            border: 1px solid #eee; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
         }
-        
-        /* Tarjetas Principales (Matriz) */
         .product-card {
-            background: white;
-            padding: 10px;
-            border-radius: 12px;
-            border: 1px solid #efefef;
-            margin-bottom: 5px;
-            text-align: center;
-            box-shadow: 0px 2px 5px rgba(0,0,0,0.05);
+            background: white; padding: 12px; border-radius: 15px;
+            border: 1px solid #f0f0f0; text-align: center;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 260px;
         }
-        
-        /* Imágenes Proporcionadas */
-        .img-fix {
-            width: 100%;
-            height: 140px;
-            object-fit: contain; /* Evita que se estiren */
-            background: white;
-            border-radius: 8px;
-            margin-bottom: 8px;
+        .img-contain {
+            width: 100%; height: 120px; object-fit: contain;
+            margin-bottom: 10px; background: white;
         }
-        
-        h4, h3, p { color: #333 !important; }
+        h4, h3, p, div { font-family: 'sans-serif'; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -169,69 +143,62 @@ if st.session_state["perfil"] == "Invitado":
         df = pd.DataFrame(sheet.get_all_records())
         if not df.empty:
             # 1. BUSCADOR
-            query = st.text_input("🔎 ¿Qué buscas hoy?", placeholder="Ej: Harina, Refresco...", key="main_search")
+            query = st.text_input("🔎 ¿Qué buscas hoy?", placeholder="Ej: Harina, Salsa...", key="main_search")
             
             df_filtered = df.copy()
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-            # 2. CINTA TRANSPORTADORA (DESTACADOS)
+            # 2. PRODUCTOS TOP (CINTA)
             if 'Prioridad' in df_filtered.columns and not query:
                 df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
                 top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
                 
                 if not top_items.empty:
                     st.markdown("### 🔥 Destacados")
-                    scroll_html = '<div class="scroll-container">'
+                    s_html = '<div class="scroll-container">'
                     for _, row in top_items.iterrows():
-                        try:
-                            p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
-                            p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
-                        except: p_float = 0.00
-                        img_url = row.get('Foto', "https://via.placeholder.com/150")
-                        
-                        scroll_html += f'''
+                        p_f = float(str(row.get('Precio', '0')).replace(',', '.')) rescue 0.0
+                        try: p_f = float(re.sub(r'[^\d.]', '', str(row.get('Precio', '0')).replace(',', '.')))
+                        except: p_f = 0.0
+                        s_html += f'''
                             <div class="scroll-item">
-                                <img src="{img_url}" style="width:80px; height:80px; object-fit:contain; border-radius:5px; background:white;">
-                                <div style="font-size:11px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#333;">{row['Producto']}</div>
-                                <div style="color:#007BFF; font-weight:bold; font-size:12px;">${p_float:.2f}</div>
-                            </div>
-                        '''
-                    scroll_html += '</div>'
-                    st.markdown(scroll_html, unsafe_allow_html=True) # <-- ESTO QUITA EL ERROR EN PANTALLA
+                                <img src="{row.get('Foto', '')}" style="width:100%; height:70px; object-fit:contain;">
+                                <div style="font-size:11px; font-weight:bold; margin-top:5px; color:#333; overflow:hidden; text-overflow:ellipsis;">{row['Producto']}</div>
+                                <div style="color:#007BFF; font-weight:bold; font-size:12px;">${p_f:.2f}</div>
+                            </div>'''
+                    s_html += '</div>'
+                    st.markdown(s_html, unsafe_allow_html=True)
                     st.divider()
 
-            # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
-            st.subheader("Catálogo")
+            # 3. MATRIZ GENERAL
+            st.subheader("Catálogo de Productos")
             df_display = df_filtered.reset_index(drop=True)
             cols = st.columns(3)
             
             for idx, row in df_display.iterrows():
                 with cols[idx % 3]:
-                    try:
-                        p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
-                        p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
-                    except: p_usd = 0.00
+                    try: p_usd = float(re.sub(r'[^\d.]', '', str(row.get('Precio', '0')).replace(',', '.')))
+                    except: p_usd = 0.0
                     
-                    # Imagen y Detalle
                     st.markdown(f"""
                         <div class="product-card">
-                            <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" class="img-fix">
-                            <div style="font-size:14px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-                            <div style="font-size:11px; color:gray;">{row['Tienda']}</div>
-                            <div style="font-size:18px; font-weight:bold; color:#28a745; margin-top:5px;">${p_usd:.2f}</div>
-                            <div style="font-size:11px; color:#555;">{p_usd * tasa_bcv:.2f} Bs.</div>
+                            <img src="{row.get('Foto', '')}" class="img-contain">
+                            <div style="font-size:14px; font-weight:bold; color:#222; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+                            <div style="font-size:11px; color:#888; margin-bottom:8px;">{row['Tienda']}</div>
+                            <div style="font-size:18px; font-weight:bold; color:#28a745;">${p_usd:.2f}</div>
+                            <div style="font-size:11px; color:#666;">{p_usd * tasa_bcv:.2f} Bs.</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Botón de WhatsApp
+                    # Botón WhatsApp
                     tel = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
                     if not tel or tel == 'nan': tel = "584127522988"
                     msg = urllib.parse.quote(f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo.")
                     
                     st.markdown(f"""
                         <a href="https://wa.me/{tel}?text={msg}" target="_blank" style="text-decoration:none;">
-                            <div style="background-color:#25D366; color:white; padding:10px; text-align:center; border-radius:8px; font-weight:bold; font-size:13px; margin-bottom:25px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="background-color:#25D366; color:white; padding:10px; text-align:center; border-radius:10px; font-weight:bold; font-size:13px; margin-top:-5px; margin-bottom:25px;">
                                 🛒 Pedir
                             </div>
                         </a>
