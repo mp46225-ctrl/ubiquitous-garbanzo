@@ -126,13 +126,30 @@ elif st.session_state["perfil"] == "Admin":
             df_mkt = pd.DataFrame(sheet.get_all_records())
             if not df_mkt.empty:
                 col_m1, col_m2 = st.columns(2)
+                
+                # Identificamos columnas existentes para evitar errores de nombres
+                c_cat = 'Categoria' if 'Categoria' in df_mkt.columns else df_mkt.columns[0]
+                c_zona = 'Zona' if 'Zona' in df_mkt.columns else df_mkt.columns[0]
+
                 with col_m1:
-                    fig_cat = px.pie(df_mkt, names='Categoria' if 'Categoria' in df_mkt.columns else df_mkt.columns[0], hole=0.4, title="Categorías")
+                    fig_cat = px.pie(df_mkt, names=c_cat, hole=0.4, title="Distribución por Categorías")
                     st.plotly_chart(fig_cat, use_container_width=True)
+                
                 with col_m2:
-                    df_z = df_mkt['Zona'].value_counts().reset_index()
-                    fig_z = px.bar(df_z, x='index', y='Zona', title="Zonas", color_discrete_sequence=['#00D1FF'])
+                    # Corrección del error de Plotly: Usamos nombres genéricos tras el conteo
+                    df_z = df_mkt[c_zona].value_counts().reset_index()
+                    df_z.columns = ['Ubicacion', 'Cantidad'] # Renombramos manualmente para ir a la segura
+                    
+                    fig_z = px.bar(
+                        df_z, 
+                        x='Ubicacion', 
+                        y='Cantidad', 
+                        title="Zonas con más Productos", 
+                        color_discrete_sequence=['#00D1FF']
+                    )
                     st.plotly_chart(fig_z, use_container_width=True)
+            else:
+                st.info("Esperando datos para generar gráficas...")
 
     with t_adm3:
         if st.button("Limpiar Caché"):
