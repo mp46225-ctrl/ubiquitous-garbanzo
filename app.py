@@ -110,12 +110,15 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (VITRINA MEJORADA) ---
+# --- PERFIL: INVITADO (VITRINA MEJORADA - VERSIÓN ANTI-ERRORES) ---
 if st.session_state["perfil"] == "Invitado":
     st.title("🔍 Vitrina Maracaibo")
     
     if sheet:
-        df = pd.DataFrame(sheet.get_all_records())
+        # Usamos cache para que la carga sea veloz
+        data_all = sheet.get_all_records()
+        df = pd.DataFrame(data_all)
+        
         if not df.empty:
             # 1. BUSCADOR Y FILTROS
             col_search, col_zona = st.columns([2, 1])
@@ -128,24 +131,32 @@ if st.session_state["perfil"] == "Invitado":
             # Aplicar Filtros
             df_filtered = df.copy()
             if query:
-                df_filtered = df_filtered[df_filtered['Producto'].str.contains(query, case=False, na=False)]
+                df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
             if zona_sel:
                 df_filtered = df_filtered[df_filtered['Zona'].isin(zona_sel)]
 
             # 2. SECCIÓN TOP (PRODUCTOS IMPULSADOS)
             if 'Prioridad' in df_filtered.columns:
-                # Convertimos a numérico por seguridad
+                # Limpieza de datos: convertimos prioridad y precio a números seguros
                 df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
+                
                 top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
                 
-                if not top_items.empty and not query: # Solo mostramos destacados si no hay una búsqueda activa
+                if not top_items.empty and not query:
                     st.markdown("### 🔥 Recomendados Píllalo")
-                    cols_top = st.columns(len(top_items[:4])) # Máximo 4 en fila
-                    for idx, (_, row) in enumerate(top_items[:4].iterrows()):
+                    cols_top = st.columns(min(len(top_items), 4)) 
+                    for idx, (_, row) in enumerate(top_items.head(4).iterrows()):
                         with cols_top[idx]:
+                            # --- LIMPIEZA DE PRECIO SEGURA ---
+                            try:
+                                p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
+                                p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
+                            except:
+                                p_float = 0.00
+                            
                             st.image(row.get('Foto', "https://via.placeholder.com/150"), use_container_width=True)
                             st.caption(f"**{row['Producto']}**")
-                            st.markdown(f"**${float(str(row['Precio']).replace(',','.')):.2f}**")
+                            st.markdown(f"**${p_float:.2f}**")
                     st.divider()
 
             # 3. LISTADO GENERAL
@@ -157,26 +168,32 @@ if st.session_state["perfil"] == "Invitado":
                         st.image(row.get('Foto', "https://via.placeholder.com/150"), width=150)
                     with c2:
                         st.markdown(f"### {row['Producto']}")
-                        try: p_usd = float(str(row.get('Precio', '0.00')).replace(',', '.'))
-                        except: p_usd = 0.00
+                        # --- LIMPIEZA DE PRECIO SEGURA ---
+                        try:
+                            p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
+                            p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
+                        except:
+                            p_usd = 0.00
+                            
                         st.markdown(f"## 💰 ${p_usd:.2f} | <span style='color:#00D1FF'>{p_usd * tasa_bcv:.2f} Bs.</span>", unsafe_allow_html=True)
                         st.write(f"🏪 {row['Tienda']} | 📍 {row['Zona']}")
                     
                     with c3:
                         # 4. BOTÓN PEDIR POR WHATSAPP
-                        # Asumimos que tienes una columna 'Telefono' en el Excel, sino usamos el tuyo de soporte
                         tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
-                        msg = f"Hola {row['Tienda']}, vi el producto *{row['Producto']}* en Píllalo y me interesa. ¿Tienen disponibilidad?"
+                        if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
+                        
+                        msg = f"Hola {row['Tienda']}, vi el producto *{row['Producto']}* en Píllalo y me interesa."
                         link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
                         
-                        st.write("") # Espaciador
-                        st.write("") 
                         st.markdown(f"""
+                            <div style="margin-top:40px;">
                             <a href="{link_pedido}" target="_blank" style="text-decoration:none;">
                                 <div style="background-color:#25D366;color:white;padding:12px;text-align:center;border-radius:10px;font-weight:bold;font-size:14px;">
                                     🛒 Pedir ahora
                                 </div>
                             </a>
+                            </div>
                         """, unsafe_allow_html=True)
                     st.divider()
 
