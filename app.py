@@ -113,28 +113,33 @@ with st.sidebar:
 # --- PERFIL: INVITADO (VERSIÓN FINAL SIN ERRORES) ---
 if st.session_state["perfil"] == "Invitado":
     st.markdown("""
-        <style>
-        .scroll-container {
-            display: flex; flex-direction: row; overflow-x: auto;
-            white-space: nowrap; padding: 10px 0px; gap: 15px; scrollbar-width: none;
-        }
-        .scroll-container::-webkit-scrollbar { display: none; }
-        .scroll-item {
-            flex: 0 0 auto; width: 110px; background: #ffffff;
-            border-radius: 10px; padding: 8px; text-align: center;
-            border: 1px solid #eee; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
-        }
-        .product-card {
-            background: white; padding: 12px; border-radius: 15px;
-            border: 1px solid #f0f0f0; text-align: center;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 260px;
-        }
-        .img-contain {
-            width: 100%; height: 120px; object-fit: contain;
-            margin-bottom: 10px; background: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    <style>
+    /* Color de títulos y acentos */
+    h1, h2, h3 { color: #001F3F !important; }
+    
+    /* Tarjetas de productos con borde superior Naranja */
+    .product-card {
+        background: white;
+        border-radius: 15px;
+        border-top: 5px solid #FF8C00;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
+    }
+    
+    /* Botón de WhatsApp con el Naranja oficial */
+    .btn-whatsapp {
+        background-color: #FF8C00 !important;
+        color: white !important;
+        border-radius: 10px;
+        font-weight: bold;
+    }
+    
+    /* Precios destacados en Azul Navy */
+    .price-tag {
+        color: #001F3F;
+        font-weight: 800;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
     st.title("🔍 Vitrina Maracaibo")
     
