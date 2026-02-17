@@ -110,7 +110,7 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (VERSIÓN FINAL PULIDA) ---
+# --- PERFIL: INVITADO (VERSIÓN FINAL SIN ERRORES) ---
 if st.session_state["perfil"] == "Invitado":
     st.markdown("""
         <style>
@@ -133,7 +133,6 @@ if st.session_state["perfil"] == "Invitado":
             width: 100%; height: 120px; object-fit: contain;
             margin-bottom: 10px; background: white;
         }
-        h4, h3, p, div { font-family: 'sans-serif'; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -158,9 +157,13 @@ if st.session_state["perfil"] == "Invitado":
                     st.markdown("### 🔥 Destacados")
                     s_html = '<div class="scroll-container">'
                     for _, row in top_items.iterrows():
-                        p_f = float(str(row.get('Precio', '0')).replace(',', '.')) rescue 0.0
-                        try: p_f = float(re.sub(r'[^\d.]', '', str(row.get('Precio', '0')).replace(',', '.')))
-                        except: p_f = 0.0
+                        try:
+                            # Limpieza de precio robusta para el Top
+                            p_raw = str(row.get('Precio', '0')).replace(',', '.')
+                            p_f = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
+                        except:
+                            p_f = 0.0
+                            
                         s_html += f'''
                             <div class="scroll-item">
                                 <img src="{row.get('Foto', '')}" style="width:100%; height:70px; object-fit:contain;">
@@ -178,8 +181,12 @@ if st.session_state["perfil"] == "Invitado":
             
             for idx, row in df_display.iterrows():
                 with cols[idx % 3]:
-                    try: p_usd = float(re.sub(r'[^\d.]', '', str(row.get('Precio', '0')).replace(',', '.')))
-                    except: p_usd = 0.0
+                    try:
+                        # Limpieza de precio robusta para la Matriz
+                        p_raw_m = str(row.get('Precio', '0')).replace(',', '.')
+                        p_usd = float(re.sub(r'[^\d.]', '', p_raw_m)) if p_raw_m else 0.0
+                    except:
+                        p_usd = 0.0
                     
                     st.markdown(f"""
                         <div class="product-card">
@@ -203,27 +210,6 @@ if st.session_state["perfil"] == "Invitado":
                             </div>
                         </a>
                     """, unsafe_allow_html=True)
-
-# --- PERFIL: ADMIN ---
-elif st.session_state["perfil"] == "Admin":
-    st.title("👨‍✈️ Admin Panel")
-    t_met, t_usr = st.tabs(["📊 Estadísticas", "👥 Usuarios"])
-    with t_met:
-        if sheet:
-            df_all = pd.DataFrame(sheet.get_all_records())
-            st.metric("Total Productos", len(df_all))
-            st.plotly_chart(px.pie(df_all, names='Zona', title="Productos por Zona"), use_container_width=True)
-    with t_usr:
-        try:
-            u_sheet = spreadsheet.worksheet("Usuarios")
-            df_u = pd.DataFrame(u_sheet.get_all_records())
-            edited = st.data_editor(df_u, num_rows="dynamic", use_container_width=True, key="editor_usuarios")
-            if st.button("💾 Guardar Usuarios"):
-                u_sheet.clear()
-                u_sheet.append_row(df_u.columns.tolist())
-                u_sheet.append_rows(edited.values.tolist())
-                st.success("Sincronizado")
-        except: st.error("Error en pestaña Usuarios")
 
 # --- PERFIL: EMPRESA ---
 elif st.session_state["perfil"] == "Empresa":
