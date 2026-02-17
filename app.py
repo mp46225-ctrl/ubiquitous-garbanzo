@@ -57,10 +57,16 @@ def registrar_estadistica(evento, detalle):
         est_sheet.append_row([fecha, evento, detalle, "Web"], value_input_option='USER_ENTERED')
     except: pass
 
-# --- 6. BARRA LATERAL (LOGIN Y SOPORTE) ---
+# --- 6. BARRA LATERAL (LOGO, TASA Y LOGIN) ---
 with st.sidebar:
-    st.title("⚡ Píllalo")
+    # --- EL LOGO ENCIMA DE LA TASA ---
+    logo_url = "https://i.ibb.co/hR7v0X6j/pillalo-logo.png" 
+    st.image(logo_url, use_container_width=True)
+    
+    # --- TASA BCV ---
+    st.divider()
     st.metric("Tasa BCV Hoy", f"{tasa_bcv:.2f} Bs.")
+    st.caption("Píllalo, pedilo y listo! ⚡")
     st.divider()
     
     if not st.session_state["logueado"]:
@@ -110,75 +116,59 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (VERSIÓN FINAL SIN ERRORES) ---
+# --- PERFIL: INVITADO (CONTENIDO PRINCIPAL) ---
 if st.session_state["perfil"] == "Invitado":
+    # Mantenemos tus estilos pero mejoramos la visual de la tarjeta
     st.markdown("""
         <style>
-        .scroll-container {
-            display: flex; flex-direction: row; overflow-x: auto;
-            white-space: nowrap; padding: 10px 0px; gap: 15px; scrollbar-width: none;
-        }
-        .scroll-container::-webkit-scrollbar { display: none; }
-        .scroll-item {
-            flex: 0 0 auto; width: 110px; background: #ffffff;
-            border-radius: 10px; padding: 8px; text-align: center;
-            border: 1px solid #eee; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
-        }
         .product-card {
             background: white; padding: 12px; border-radius: 15px;
             border: 1px solid #f0f0f0; text-align: center;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 260px;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 280px;
+            margin-bottom: 10px;
         }
         .img-contain {
-            width: 100%; height: 120px; object-fit: contain;
+            width: 100%; height: 130px; object-fit: contain;
             margin-bottom: 10px; background: white;
         }
+        .price-style { color: #001F3F; font-size: 20px; font-weight: bold; margin-bottom: 0px; }
+        .bcv-style { color: #FF8C00; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("🔍 Vitrina Maracaibo")
+    st.title("🔎 Vitrina Maracaibo")
     
     if sheet:
         df = pd.DataFrame(sheet.get_all_records())
         if not df.empty:
             # 1. BUSCADOR
-            query = st.text_input("🔎 ¿Qué buscas hoy?", placeholder="Ej: Harina, Salsa...", key="main_search")
+            query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
             
             df_filtered = df.copy()
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-            # 2. PRODUCTOS TOP (CINTA HORIZONTAL CLICKABLE)
+            # 2. PRODUCTOS TOP (CINTA HORIZONTAL)
             if 'Prioridad' in df_filtered.columns and not query:
                 df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
                 top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
                 
                 if not top_items.empty:
                     st.markdown("### 🔥 Destacados")
-                    
-                    # Creamos tantas columnas como productos haya para que estén horizontales
-                    # Ajustamos el ancho para que parezca una cinta
-                    cols_top = st.columns([1]*len(top_items) + [4]) # El +[4] es un truco para empujarlos a la izquierda
-                    
+                    cols_top = st.columns([1]*len(top_items) + [4])
                     for i, (idx, row) in enumerate(top_items.iterrows()):
                         with cols_top[i]:
-                            try:
-                                p_raw = str(row.get('Precio', '0')).replace(',', '.')
-                                p_f = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
-                            except: p_f = 0.0
+                            p_raw = str(row.get('Precio', '0')).replace(',', '.')
+                            p_f = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
                             
-                            img_url = row.get('Foto', "https://via.placeholder.com/150")
-                            
-                            # Diseño de la mini-tarjeta
                             st.markdown(f'''
                                 <div style="text-align: center; background: white; border-radius: 10px; border: 1px solid #eee; padding: 5px;">
-                                    <img src="{img_url}" style="width:100%; height:60px; object-fit:contain;">
+                                    <img src="{row.get('Foto', '')}" style="width:100%; height:60px; object-fit:contain;">
                                     <div style="font-size:10px; font-weight:bold; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-                                    <div style="color:#007BFF; font-size:11px; font-weight:bold;">${p_f:.2f}</div>
+                                    <div style="color:#001F3F; font-size:11px; font-weight:bold;">${p_f:.2f}</div>
                                 </div>
                             ''', unsafe_allow_html=True)
                             
-                            # Botón pequeño para activar el detalle
                             if st.button("🔍", key=f"top_{idx}", use_container_width=True):
                                 @st.dialog(f"{row['Producto']}")
                                 def detalle_top(item, precio):
@@ -187,16 +177,13 @@ if st.session_state["perfil"] == "Invitado":
                                     c1.metric("Precio USD", f"${precio:.2f}")
                                     c2.metric("Precio BCV", f"{(precio * tasa_bcv):.2f} Bs.")
                                     st.write(f"🏠 **Tienda:** {item['Tienda']}")
-                                    
                                     tel = str(item.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
                                     msg = urllib.parse.quote(f"Hola {item['Tienda']}, quiero el destacado *{item['Producto']}*.")
                                     st.link_button("🛒 Pedir Ahora", f"https://wa.me/{tel}?text={msg}", use_container_width=True)
-                                
                                 detalle_top(row, p_f)
-
                     st.divider()
 
-            # 3. MATRIZ GENERAL
+            # 3. MATRIZ GENERAL (3 Columnas)
             st.subheader("Catálogo de Productos")
             df_display = df_filtered.reset_index(drop=True)
             cols = st.columns(3)
@@ -204,27 +191,21 @@ if st.session_state["perfil"] == "Invitado":
             for idx, row in df_display.iterrows():
                 with cols[idx % 3]:
                     try:
-                        # Limpieza de precio robusta para la Matriz
                         p_raw_m = str(row.get('Precio', '0')).replace(',', '.')
                         p_usd = float(re.sub(r'[^\d.]', '', p_raw_m)) if p_raw_m else 0.0
-                    except:
-                        p_usd = 0.0
+                    except: p_usd = 0.0
                     
                     st.markdown(f"""
                         <div class="product-card">
                             <img src="{row.get('Foto', '')}" class="img-contain">
-                            <div style="font-size:14px; font-weight:bold; color:#222; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-                            <div style="font-size:11px; color:#888; margin-bottom:8px;">{row['Tienda']}</div>
-                            <div style="font-size:18px; font-weight:bold; color:#28a745;">${p_usd:.2f}</div>
-                            <div style="font-size:11px; color:#666;">{p_usd * tasa_bcv:.2f} Bs.</div>
+                            <div style="font-size:14px; font-weight:bold; color:#222; height:35px; overflow:hidden;">{row['Producto']}</div>
+                            <div class="price-style">${p_usd:.2f}</div>
+                            <div class="bcv-style">{(p_usd * tasa_bcv):.2f} Bs.</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Botón WhatsApp
                     tel = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
-                    if not tel or tel == 'nan': tel = "584127522988"
                     msg = urllib.parse.quote(f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo.")
-                    
                     st.markdown(f"""
                         <a href="https://wa.me/{tel}?text={msg}" target="_blank" style="text-decoration:none;">
                             <div style="background-color:#25D366; color:white; padding:10px; text-align:center; border-radius:10px; font-weight:bold; font-size:13px; margin-top:-5px; margin-bottom:25px;">
