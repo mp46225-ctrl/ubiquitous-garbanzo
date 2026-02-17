@@ -236,3 +236,57 @@ elif st.session_state["perfil"] == "Empresa":
             else: st.warning("No tienes productos cargados aún.")
 
     # ... (Resto de pestañas t2 y t3 igual al código anterior)
+
+# --- 8. SECCIÓN DE SOPORTE DINÁMICO (SIDEBAR) ---
+with st.sidebar:
+    st.divider()
+    st.subheader("🆘 ¿Necesitas ayuda?")
+    
+    # CONFIGURA TU NÚMERO AQUÍ
+    mi_whatsapp = "584127522988" 
+    
+    if st.session_state["logueado"]:
+        user = st.session_state["user_name"]
+        perfil = st.session_state["perfil"]
+        
+        # Personalizamos el mensaje según quién escribe
+        if perfil == "Admin":
+            mensaje_wa = "Hola, soy el Admin de Píllalo. Necesito asistencia técnica con la base de datos."
+        else:
+            mensaje_wa = f"Hola Píllalo, soy {user}. Necesito soporte con mi cuenta de socio y la carga de productos."
+        
+        # Codificamos el mensaje para URL
+        import urllib.parse
+        mensaje_encoded = urllib.parse.quote(mensaje_wa)
+        link_wa = f"https://wa.me/{mi_whatsapp}?text={mensaje_encoded}"
+        
+        # Botón estilizado con HTML/CSS para que sea verde WhatsApp
+        st.markdown(f"""
+            <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                <div style="
+                    background-color: #25D366;
+                    color: white;
+                    padding: 12px;
+                    text-align: center;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    border: none;
+                    cursor: pointer;
+                    transition: 0.3s;
+                ">
+                    💬 Hablar con Soporte
+                </div>
+            </a>
+        """, unsafe_allow_html=True)
+        
+        st.caption("Horario de atención: 8:00 AM - 8:00 PM")
+    else:
+        st.info("👋 ¡Hola! Si eres socio y tienes problemas para entrar, contacta al administrador del sistema.")
+
+# --- PIE DE PÁGINA ---
+st.divider()
+st.caption(f"Píllalo 2026 | Business Intelligence Suite | Tasa BCV: {tasa_bcv:.2f} Bs.")
