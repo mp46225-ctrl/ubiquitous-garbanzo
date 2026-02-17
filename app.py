@@ -138,28 +138,58 @@ elif st.session_state["perfil"] == "Admin":
             try:
                 est_sheet = spreadsheet.worksheet("Estadisticas")
                 df_est = pd.DataFrame(est_sheet.get_all_records())
-            except: df_est = pd.DataFrame(columns=['Fecha', 'Evento', 'Detalle'])
+            except: 
+                df_est = pd.DataFrame(columns=['Fecha', 'Evento', 'Detalle'])
 
+            # --- MÉTRICAS KPI ---
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Productos", len(df_total))
-            c2.metric("Comercios", df_total['Tienda'].nunique() if 'Tienda' in df_total.columns else 0)
+            c1.metric("📦 Productos", len(df_total))
+            c2.metric("🏪 Comercios", df_total['Tienda'].nunique() if 'Tienda' in df_total.columns else 0)
             
             visitas = len(df_est[df_est['Evento'] == 'VISITA']) if 'Evento' in df_est.columns else 0
             planes = len(df_est[df_est['Evento'] == 'PAGO_PREMIUM']) if 'Evento' in df_est.columns else 0
-            c3.metric("Visitas Totales", visitas)
-            c4.metric("Planes Vendidos", planes)
+            c3.metric("👤 Visitas Totales", visitas)
+            c4.metric("💎 Planes Vendidos", planes)
 
             st.divider()
-            col_g1, col_g2 = st.columns(2)
-            with col_g1:
-                st.subheader("🔥 Top Productos")
-                top = df_total['Producto'].value_counts().head(5).reset_index()
-                top.columns = ['P', 'Cant']
-                st.plotly_chart(px.bar(top, x='Cant', y='P', orientation='h', color_discrete_sequence=['#FF4B4B']), use_container_width=True)
-            with col_g2:
-                st.subheader("📍 Oferta por Zona")
-                zonas_df = df_total['Zona'].value_counts().reset_index()
-                st.plotly_chart(px.pie(zonas_df, names='index', values='Zona', hole=0.4), use_container_width=True)
+
+            # --- GRÁFICOS (REPARADOS) ---
+            if not df_total.empty:
+                col_g1, col_g2 = st.columns(2)
+                
+                with col_g1:
+                    st.subheader("🔥 Top 5 Productos")
+                    # Contamos y reseteamos nombres manualmente para evitar el error 'index'
+                    top_df = df_total['Producto'].value_counts().head(5).reset_index()
+                    top_df.columns = ['Producto', 'Cantidad'] # Forzamos nombres claros
+                    
+                    fig_top = px.bar(
+                        top_df, 
+                        x='Cantidad', 
+                        y='Producto', 
+                        orientation='h',
+                        color_discrete_sequence=['#FF4B4B'],
+                        text_auto=True
+                    )
+                    fig_top.update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig_top, use_container_width=True)
+
+                with col_g2:
+                    st.subheader("📍 Oferta por Zona")
+                    # Contamos y reseteamos nombres manualmente
+                    zona_chart_df = df_total['Zona'].value_counts().reset_index()
+                    zona_chart_df.columns = ['Zona', 'Cantidad'] # Forzamos nombres claros
+                    
+                    fig_pie = px.pie(
+                        zona_chart_df, 
+                        names='Zona', 
+                        values='Cantidad', 
+                        hole=0.4,
+                        color_discrete_sequence=px.colors.qualitative.Pastel
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.info("Aún no hay datos para mostrar gráficos.")
 
     with t_usuarios:
         st.subheader("🔐 Gestión de Usuarios (Google Sheets)")
