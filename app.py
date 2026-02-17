@@ -148,30 +148,62 @@ if st.session_state["perfil"] == "Invitado":
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-            # 2. PRODUCTOS TOP (CINTA)
+            # 2. PRODUCTOS TOP (CINTA CON INTERACCIÓN)
             if 'Prioridad' in df_filtered.columns and not query:
                 df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
                 top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
                 
                 if not top_items.empty:
                     st.markdown("### 🔥 Destacados")
-                    s_html = '<div class="scroll-container">'
-                    for _, row in top_items.iterrows():
+                    
+                    # Creamos una fila de botones pequeños para que sean clickeables
+                    cols_top = st.columns(len(top_items) if len(top_items) < 7 else 7) # Ajuste visual
+                    
+                    # Usamos el contenedor nativo para que el clic funcione
+                    scroll_html = '<div class="scroll-container">'
+                    
+                    # Para que los tops sean clickeables en Streamlit, lo mejor es usar columnas con botones de imagen
+                    # Pero para mantener la "cinta", usaremos un selectbox estético o botones simples debajo
+                    
+                    for idx, row in top_items.iterrows():
                         try:
-                            # Limpieza de precio robusta para el Top
                             p_raw = str(row.get('Precio', '0')).replace(',', '.')
                             p_f = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
-                        except:
-                            p_f = 0.0
+                        except: p_f = 0.0
+                        
+                        img_url = row.get('Foto', "https://via.placeholder.com/150")
+                        
+                        # Generamos un ID único para cada modal
+                        modal_id = f"modal_{idx}"
+                        
+                        with st.container():
+                            # Renderizamos el item estético
+                            st.markdown(f'''
+                                <div style="display: inline-block; width: 110px; margin-right: 15px; background: white; border-radius: 10px; padding: 8px; text-align: center; border: 1px solid #eee;">
+                                    <img src="{img_url}" style="width:100%; height:70px; object-fit:contain;">
+                                    <div style="font-size:11px; font-weight:bold; margin-top:5px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+                                    <div style="color:#007BFF; font-weight:bold; font-size:12px;">${p_f:.2f}</div>
+                                </div>
+                            ''', unsafe_allow_html=True)
                             
-                        s_html += f'''
-                            <div class="scroll-item">
-                                <img src="{row.get('Foto', '')}" style="width:100%; height:70px; object-fit:contain;">
-                                <div style="font-size:11px; font-weight:bold; margin-top:5px; color:#333; overflow:hidden; text-overflow:ellipsis;">{row['Producto']}</div>
-                                <div style="color:#007BFF; font-weight:bold; font-size:12px;">${p_f:.2f}</div>
-                            </div>'''
-                    s_html += '</div>'
-                    st.markdown(s_html, unsafe_allow_html=True)
+                            # Botón de "Ver más" justo debajo de cada mini-tarjeta
+                            if st.button(f"👀 Ver", key=f"btn_top_{idx}"):
+                                @st.dialog(f"Detalle: {row['Producto']}")
+                                def detalle_producto(item, precio):
+                                    st.image(item.get('Foto', ""), use_container_width=True)
+                                    col_a, col_b = st.columns(2)
+                                    col_a.metric("Precio USD", f"${precio:.2f}")
+                                    col_b.metric("Precio BCV", f"{(precio * tasa_bcv):.2f} Bs.")
+                                    st.write(f"🏪 **Tienda:** {item['Tienda']}")
+                                    st.write(f"📍 **Zona:** {item.get('Zona', 'Maracaibo')}")
+                                    
+                                    # Botón de WhatsApp dentro del modal
+                                    tel = str(item.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
+                                    msg = urllib.parse.quote(f"Hola {item['Tienda']}, me interesa el destacado *{item['Producto']}*.")
+                                    st.link_button("🟢 Pedir por WhatsApp", f"https://wa.me/{tel}?text={msg}", use_container_width=True)
+                                
+                                detalle_producto(row, p_f)
+
                     st.divider()
 
             # 3. MATRIZ GENERAL
