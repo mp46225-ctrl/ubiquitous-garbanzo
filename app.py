@@ -251,41 +251,77 @@ if st.session_state["perfil"] == "Invitado":
                             st.session_state["favoritos"].remove(f_row['Producto'])
                             st.rerun()
 
-        # 4. SIDEBAR CARRITO MULTI-TIENDA
+        # --- 4. SIDEBAR CARRITO MULTI-TIENDA (CORREGIDO) ---
         if st.session_state["carrito"]:
             with st.sidebar:
                 st.header("🛒 Mi Pedido")
+                
+                # Agrupar productos por tienda
                 tiendas_en_carrito = {}
                 for p_nombre, info in st.session_state["carrito"].items():
-                    t_nombre = info['tienda']
+                    t_nombre = info.get('tienda', 'Tienda Desconocida')
                     if t_nombre not in tiendas_en_carrito:
                         tiendas_en_carrito[t_nombre] = []
                     tiendas_en_carrito[t_nombre].append({'nombre': p_nombre, 'info': info})
 
                 total_general = 0
+                
                 for tienda, productos in tiendas_en_carrito.items():
                     with st.expander(f"🏪 {tienda}", expanded=True):
                         subtotal_tienda = 0
-                        msg_whatsapp = f"*📦 NUEVO PEDIDO - {tienda.upper()}* ⚡\n\n"
+                        # Formato de Ticket para el mensaje
+                        fecha_ticket = datetime.now().strftime("%d/%m/%Y")
+                        msg_whatsapp = f" *📦 NUEVO PEDIDO - PÍLLALO* ⚡\n"
+                        msg_whatsapp += f"----------------------------------\n"
+                        msg_whatsapp += f"🏠 *Tienda:* {tienda.upper()}\n"
+                        msg_whatsapp += f"📅 *Fecha:* {fecha_ticket}\n"
+                        msg_whatsapp += f"----------------------------------\n"
+                        
                         for item in productos:
                             p_name = item['nombre']
                             info = item['info']
                             sub_item = info['precio'] * info['cant']
                             subtotal_tienda += sub_item
                             total_general += sub_item
+                            
                             st.write(f"**{p_name}**")
                             st.caption(f"{info['cant']} x ${info['precio']:.2f} = ${sub_item:.2f}")
-                            msg_whatsapp += f"• {info['cant']}x {p_name} (${info['precio']:.2f})\n"
+                            # Agregando al ticket de texto
+                            msg_whatsapp += f"✅ {info['cant']}x {p_name}\n"
+                            msg_whatsapp += f"      Subt: ${sub_item:.2f}\n"
                         
-                        msg_whatsapp += f"\n💰 *SUBTOTAL:* ${subtotal_tienda:.2f}"
+                        msg_whatsapp += f"----------------------------------\n"
+                        msg_whatsapp += f"💰 *TOTAL A PAGAR:* ${subtotal_tienda:.2f}\n"
+                        msg_whatsapp += f"----------------------------------\n"
+                        msg_whatsapp += f"⚡ _Enviado desde Vitrina Maracaibo_"
+                        
                         whatsapp_tienda = productos[0]['info']['tel']
-                        if st.button(f"Pedir a {tienda}", key=f"send_{tienda}", use_container_width=True):
-                            link = f"https://wa.me/{whatsapp_tienda}?text={urllib.parse.quote(msg_whatsapp)}"
-                            st.markdown(f'<meta http-equiv="refresh" content="0;URL={link}">', unsafe_allow_html=True)
+                        
+                        # CREACIÓN DEL ENLACE SEGURO
+                        link_final = f"https://wa.me/{whatsapp_tienda}?text={urllib.parse.quote(msg_whatsapp)}"
+                        
+                        # Botón con link directo
+                        st.markdown(f"""
+                            <a href="{link_final}" target="_blank" style="text-decoration: none;">
+                                <div style="
+                                    background-color: #25D366;
+                                    color: white;
+                                    padding: 10px 20px;
+                                    text-align: center;
+                                    border-radius: 8px;
+                                    font-weight: bold;
+                                    margin-top: 10px;
+                                    cursor: pointer;
+                                    border: none;">
+                                    🚀 Enviar Pedido a {tienda}
+                                </div>
+                            </a>
+                        """, unsafe_allow_html=True)
                 
                 st.divider()
                 st.metric("TOTAL GENERAL", f"${total_general:.2f}")
                 st.caption(f"Ref: {(total_general * tasa_bcv):.2f} Bs.")
+                
                 if st.button("Vaciar Todo 🗑️", use_container_width=True):
                     st.session_state["carrito"] = {}
                     st.rerun()
