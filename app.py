@@ -112,34 +112,39 @@ with st.sidebar:
 
 # --- PERFIL: INVITADO (INTERFAZ PREMIUM) ---
 if st.session_state["perfil"] == "Invitado":
-    # CSS para la cinta transportadora y diseño de tarjetas
+    # CSS MEJORADO: Fuerza la fila horizontal y oculta barras de scroll molestas
     st.markdown("""
         <style>
         .scroll-container {
             display: flex;
-            overflow-x: auto;
+            flex-direction: row; /* Fuerza los items uno al lado del otro */
+            overflow-x: auto;    /* Habilita el movimiento lateral */
             white-space: nowrap;
-            padding: 10px 5px;
+            padding: 15px 5px;
             gap: 15px;
-            scrollbar-width: thin;
+            scrollbar-width: none; /* Firefox */
+        }
+        .scroll-container::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
         }
         .scroll-item {
-    flex: 0 0 auto;
-    width: 120px; /* Un pelín más ancho para que respire */
-    background: #1e1e1e;
-    border-radius: 12px;
-    padding: 10px;
-    text-align: center;
-    border: 1px solid #333;
-    /* Evita que el texto largo empuje la caja hacia abajo */
-    overflow: hidden; 
-}
-
-.scroll-item div {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+            flex: 0 0 auto;      /* IMPORTANTE: Evita que el item se encoja */
+            width: 130px; 
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #333;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+        .product-card {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 15px;
+            border: 1px solid #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -176,7 +181,7 @@ if st.session_state["perfil"] == "Invitado":
                         scroll_html += f'''
                             <div class="scroll-item">
                                 <img src="{img_url}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
-                                <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis;">{row['Producto']}</div>
+                                <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
                                 <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
                             </div>
                         '''
@@ -187,36 +192,34 @@ if st.session_state["perfil"] == "Invitado":
             # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
             st.subheader("Todos los productos")
             
-            # Creamos la rejilla de 3 columnas
             cols = st.columns(3)
             for idx, (_, row) in enumerate(df_filtered.iterrows()):
-                with cols[idx % 3]: # Esto distribuye los productos en 0, 1, 2, 0, 1, 2...
-                    with st.container():
-                        # --- LIMPIEZA DE PRECIO ---
-                        try:
-                            p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
-                            p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
-                        except: p_usd = 0.00
-                        
-                        # Tarjeta de producto
-                        st.markdown(f"""
-                            <div class="product-card">
-                                <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; border-radius:10px; margin-bottom:10px;">
-                                <h4 style="margin:0; font-size:16px;">{row['Producto']}</h4>
-                                <p style="color:gray; font-size:12px; margin:5px 0;">🏪 {row['Tienda']}</p>
-                                <h3 style="margin:5px 0; color:#00D1FF;">${p_usd:.2f}</h3>
-                                <p style="font-size:14px; color:#555;">{p_usd * tasa_bcv:.2f} Bs.</p>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Botón de WhatsApp debajo de la tarjeta (Streamlit Nativo para que funcione el link)
-                        tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
-                        if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
-                        msg = f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo."
-                        link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
-                        
-                        st.link_button("🛒 Pedir", link_pedido, use_container_width=True)
-                        st.write("") # Espacio entre filas
+                with cols[idx % 3]:
+                    # --- LIMPIEZA DE PRECIO ---
+                    try:
+                        p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
+                        p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
+                    except: p_usd = 0.00
+                    
+                    # Tarjeta de producto
+                    st.markdown(f"""
+                        <div class="product-card">
+                            <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; height:150px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
+                            <h4 style="margin:0; font-size:16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{row['Producto']}</h4>
+                            <p style="color:gray; font-size:12px; margin:5px 0;">🏪 {row['Tienda']}</p>
+                            <h3 style="margin:5px 0; color:#00D1FF;">${p_usd:.2f}</h3>
+                            <p style="font-size:13px; color:#aaa; margin-bottom:0;">{p_usd * tasa_bcv:.2f} Bs.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Botón de WhatsApp
+                    tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
+                    if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
+                    msg = f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo."
+                    link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
+                    
+                    st.link_button("🛒 Pedir", link_pedido, use_container_width=True, key=f"btn_{idx}")
+                    st.write("")
 
 # --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
