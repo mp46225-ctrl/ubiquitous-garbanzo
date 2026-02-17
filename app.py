@@ -282,7 +282,7 @@ elif st.session_state["perfil"] == "Empresa":
             st.error("15 de Marzo")
             st.button("Pagar Suscripción")
 
-   with t4:
+    with t4:
         st.subheader("🖼️ Gestor de Imágenes y Carga Masiva")
         
         # --- CONFIGURACIÓN API IMGBB ---
