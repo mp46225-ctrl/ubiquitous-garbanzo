@@ -161,33 +161,21 @@ if st.session_state["perfil"] == "Invitado":
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
 
-            # 2. CINTA TRANSPORTADORA (PRODUCTOS TOP)
-            if 'Prioridad' in df_filtered.columns and not query:
-                df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
-                top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
-                
-                if not top_items.empty:
-                    st.markdown("### 🔥 Destacados Píllalo")
-                    
-                    # Generamos el HTML para la cinta transportadora
-                    scroll_html = '<div class="scroll-container">'
-                    for _, row in top_items.iterrows():
-                        try:
-                            p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
-                            p_float = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
-                        except: p_float = 0.00
-                        
-                        img_url = row.get('Foto', "https://via.placeholder.com/150")
-                        scroll_html += f'''
-                            <div class="scroll-item">
-                                <img src="{img_url}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
-                                <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-                                <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
-                            </div>
-                        '''
-                    scroll_html += '</div>'
-                    st.markdown(scroll_html, unsafe_allow_html=True)
-                    st.divider()
+           # --- GENERACIÓN DE LA CINTA ---
+scroll_html = '<div class="scroll-container">'
+for _, row in top_items.iterrows():
+    # ... (aquí va tu lógica de limpieza de precio y fotos) ...
+    scroll_html += f'''
+        <div class="scroll-item">
+            <img src="{row.get('Foto', '')}" style="width:100px; height:100px; object-fit:cover; border-radius:8px;">
+            <div style="font-size:12px; font-weight:bold; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
+            <div style="color:#00D1FF; font-weight:bold;">${p_float:.2f}</div>
+        </div>
+    '''
+scroll_html += '</div>'
+
+# ESTA ES LA LÍNEA CLAVE:
+st.markdown(scroll_html, unsafe_allow_html=True)
 
             # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
             st.subheader("Todos los productos")
