@@ -128,20 +128,19 @@ if st.session_state["perfil"] == "Invitado":
         .product-card {
             background: white; padding: 12px; border-radius: 12px;
             border: 1px solid #e0e0e0; text-align: left;
-            box-shadow: 0px 2px 5px rgba(0,0,0,0.05); height: 460px;
+            box-shadow: 0px 2px 5px rgba(0,0,0,0.05); height: 450px;
             margin-bottom: 15px; position: relative;
         }
         .img-contain {
             width: 100%; height: 110px; object-fit: contain;
             margin-bottom: 8px; background: #f9f9f9; border-radius: 8px;
         }
-        .tit-prod { font-size: 14px; font-weight: bold; color: #222; height: 35px; overflow: hidden; line-height: 1.2; }
-        .tienda-tag { font-size: 12px; color: #007bff; font-weight: bold; }
-        .rating-star { color: #FFD700; font-size: 12px; margin: 5px 0; }
+        .tit-prod { font-size: 13px; font-weight: bold; color: #222; height: 32px; overflow: hidden; line-height: 1.2; }
+        .tienda-tag { font-size: 11px; color: #007bff; font-weight: bold; }
+        .rating-star { color: #FFD700; font-size: 10px; margin: 3px 0; }
         .price-usd { color: #001F3F; font-size: 18px; font-weight: 900; margin-top: 5px; }
         .price-bs { color: #FF8C00; font-size: 12px; font-weight: bold; }
         .fecha-upd { font-size: 9px; color: #aaa; margin-top: 8px; border-top: 1px solid #eee; padding-top: 4px; }
-        .fav-icon { position: absolute; top: 10px; right: 10px; color: #ff4b4b; cursor: pointer; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -150,52 +149,66 @@ if st.session_state["perfil"] == "Invitado":
     if sheet:
         try:
             raw_data = sheet.get_all_records()
-            if not raw_data: st.stop()
+            if not raw_data: 
+                st.warning("No hay productos cargados.")
+                st.stop()
             df = pd.DataFrame(raw_data)
             
-            # Escudo de columnas (Rating y Zona)
+            # Escudo de columnas (Rating, Zona, Telefono)
             if 'Telefono' not in df.columns: df['Telefono'] = "584127522988"
             if 'Zona' not in df.columns: df['Zona'] = "Maracaibo"
-            if 'Rating' not in df.columns: df['Rating'] = 5 # 5 estrellas por defecto
+            if 'Rating' not in df.columns: df['Rating'] = 5 
             if 'Actualizado' not in df.columns: df['Actualizado'] = datetime.now().strftime("%d/%m/%y")
-        except: st.stop()
+        except Exception as e:
+            st.error("Error al conectar con la base de datos.")
+            st.stop()
 
-        # --- BUSCADOR Y PESTAÑAS DE NAVEGACIÓN ---
+        # --- BUSCADOR Y PESTAÑAS ---
         query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
-        tab_cat, tab_fav = st.tabs(["🛒 Catálogo General", "❤️ Mis Favoritos"])
+        tab_cat, tab_fav = st.tabs(["🛒 Catálogo", "❤️ Favoritos"])
 
-        # Lógica del Carrito (Resumen expandible)
+        # Carrito en la barra lateral para no estorbar
         if st.session_state["carrito"]:
-            with st.sidebar.expander(f"🛒 Carrito ({len(st.session_state['carrito'])})", expanded=True):
-                t_usd = 0
+            with st.sidebar:
+                st.subheader("🛒 Mi Pedido")
+                t_usd_c = 0
                 for p, info in list(st.session_state["carrito"].items()):
-                    t_usd += info['precio'] * info['cant']
-                    st.write(f"**{p}** x{info['cant']}")
-                st.write(f"**Total: ${t_usd:.2f}**")
-                if st.button("🚀 Pedir por WA"):
-                    # (Aquí va la lógica de envío que ya tenemos)
-                    pass
+                    sub = info['precio'] * info['cant']
+                    t_usd_c += sub
+                    st.write(f"**{p}** (x{info['cant']})")
+                st.divider()
+                st.metric("Total", f"${t_usd_c:.2f}")
+                if st.button("🚀 Enviar a WhatsApp"):
+                    # Lógica de envío resumida
+                    msg_wa = f"*NUEVO PEDIDO PÍLLALO* ⚡\nTotal: ${t_usd_c:.2f}"
+                    tel_wa = list(st.session_state["carrito"].values())[0]['tel']
+                    st.markdown(f'<meta http-equiv="refresh" content="0;URL=https://wa.me/{tel_wa}?text={urllib.parse.quote(msg_wa)}">', unsafe_allow_html=True)
 
         with tab_cat:
             df_filtered = df.copy()
             if query:
                 df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
             
-            # Matriz de 4 Columnas
             df_display = df_filtered.reset_index(drop=True)
-            cols = st.columns(4)
+            cols = st.columns(4) # MATRIZ DE 4 COLUMNAS
             
             for idx, row in df_display.iterrows():
                 with cols[idx % 4]:
-                    p_usd = float(str(row.get('Precio', 0)).replace(',', '.'))
+                    # --- LIMPIEZA ROBUSTA DE PRECIO ---
+                    try:
+                        p_val = str(row.get('Precio', '0'))
+                        p_val = re.sub(r'[^\d.,]', '', p_val).replace(',', '.')
+                        p_usd = float(p_val)
+                    except:
+                        p_usd = 0.0
+                    
                     rating = int(row.get('Rating', 5))
                     stars = "⭐" * rating
                     es_fav = row['Producto'] in st.session_state["favoritos"]
                     
-                    # HTML de la tarjeta
                     st.markdown(f"""
                         <div class="product-card">
-                            <div style="text-align:right; font-size:18px;">{'❤️' if es_fav else '🤍'}</div>
+                            <div style="text-align:right; font-size:16px;">{'❤️' if es_fav else '🤍'}</div>
                             <img src="{row.get('Foto', '')}" class="img-contain">
                             <div class="tit-prod">{row['Producto']}</div>
                             <div class="tienda-tag">🏪 {row['Tienda']}</div>
@@ -206,27 +219,24 @@ if st.session_state["perfil"] == "Invitado":
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Botonera de interacción
-                    c1, c2 = st.columns(2)
-                    if c1.button("❤️" if not es_fav else "💔", key=f"fav_{idx}"):
-                        if row['Producto'] in st.session_state["favoritos"]:
-                            st.session_state["favoritos"].remove(row['Producto'])
-                        else:
-                            st.session_state["favoritos"].append(row['Producto'])
+                    c1, c2 = st.columns([1, 2])
+                    if c1.button("❤️" if not es_fav else "💔", key=f"f_{idx}"):
+                        if es_fav: st.session_state["favoritos"].remove(row['Producto'])
+                        else: st.session_state["favoritos"].append(row['Producto'])
                         st.rerun()
                         
-                    if c2.button("➕", key=f"add_{idx}"):
-                        p_nom = row['Producto']
-                        if p_nom in st.session_state["carrito"]: st.session_state["carrito"][p_nom]['cant'] += 1
-                        else: st.session_state["carrito"][p_nom] = {'precio': p_usd, 'tel': row['Telefono'], 'cant': 1}
-                        st.toast(f"¡{p_nom} añadido!")
+                    if c2.button("➕ Añadir", key=f"a_{idx}"):
+                        p_n = row['Producto']
+                        if p_n in st.session_state["carrito"]: st.session_state["carrito"][p_n]['cant'] += 1
+                        else: st.session_state["carrito"][p_n] = {'precio': p_usd, 'tel': row['Telefono'], 'cant': 1}
+                        st.toast(f"¡{p_n} al carrito!")
 
         with tab_fav:
             if not st.session_state["favoritos"]:
-                st.info("No tenéis favoritos todavía. ¡Empezá a darle amor a los productos! ❤️")
+                st.info("No tienes favoritos guardados.")
             else:
-                df_favs = df[df['Producto'].isin(st.session_state["favoritos"])]
-                st.dataframe(df_favs[['Producto', 'Tienda', 'Precio']], use_container_width=True)
+                fav_items = df[df['Producto'].isin(st.session_state["favoritos"])]
+                st.dataframe(fav_items[['Producto', 'Tienda', 'Precio']], use_container_width=True)
 
 # --- PERFIL: EMPRESA  ---
 elif st.session_state["perfil"] == "Empresa":
