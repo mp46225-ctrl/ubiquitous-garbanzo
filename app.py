@@ -60,7 +60,7 @@ def registrar_estadistica(evento, detalle):
 # --- 6. BARRA LATERAL (LOGO, TASA Y LOGIN) ---
 with st.sidebar:
     # --- EL LOGO ENCIMA DE LA TASA ---
-    logo_url = "https://cdn-icons-png.flaticon.com/512/9335/9335552.png" 
+    logo_url = "https://i.ibb.co/4wrgcH2N/Gemini-Generated-Image-gtozd3gtozd3gtoz.png" 
     st.image(logo_url, use_container_width=True)
     
     # --- TASA BCV ---
