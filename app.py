@@ -117,9 +117,8 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (CON CARRITO Y ESCUDO) ---
+# --- PERFIL: INVITADO (CARRITO + DESTACADOS + ESCUDO) ---
 if st.session_state["perfil"] == "Invitado":
-    # Inicializar carrito si no existe
     if "carrito" not in st.session_state:
         st.session_state["carrito"] = {}
 
@@ -146,76 +145,86 @@ if st.session_state["perfil"] == "Invitado":
         try:
             raw_data = sheet.get_all_records()
             if not raw_data:
-                st.warning("⚠️ La vitrina está vacía por ahora.")
+                st.warning("⚠️ La vitrina está vacía.")
                 st.stop()
             df = pd.DataFrame(raw_data)
-            
-            # ESCUDO: Si falta 'Telefono', lo creamos vacío para que no explote
             if 'Telefono' not in df.columns:
-                df['Telefono'] = "584127522988" # Tu número por defecto
+                df['Telefono'] = "584127522988"
         except Exception as e:
-            st.error(f"Error cargando datos: {e}")
+            st.error(f"Error: {e}")
             st.stop()
 
-        # 1. BUSCADOR Y CARRITO FLOTANTE
+        # 1. BUSCADOR Y CARRITO
         query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
         
-        # --- SECCIÓN DEL CARRITO (ARRIBA) ---
         if st.session_state["carrito"]:
-            with st.expander(f"🛒 VER MI PEDIDO ({sum(item['cant'] for item in st.session_state['carrito'].values())} productos)"):
-                total_usd_carrito = 0
-                items_para_borrar = []
-                
-                for prod_name, info in st.session_state["carrito"].items():
-                    subtotal = info['precio'] * info['cant']
-                    total_usd_carrito += subtotal
+            with st.expander(f"🛒 VER MI PEDIDO ({sum(item['cant'] for item in st.session_state['carrito'].values())} ítems)"):
+                t_usd = 0
+                borrar = []
+                for p, info in st.session_state["carrito"].items():
+                    sub = info['precio'] * info['cant']
+                    t_usd += sub
                     c1, c2, c3 = st.columns([3, 1, 1])
-                    c1.write(f"**{prod_name}** (${info['precio']:.2f})")
+                    c1.write(f"**{p}** (${info['precio']:.2f})")
                     c2.write(f"{info['cant']}x")
-                    if c3.button("❌", key=f"del_{prod_name}"):
-                        items_para_borrar.append(prod_name)
+                    if c3.button("❌", key=f"del_{p}"): borrar.append(p)
                 
-                for item in items_para_borrar:
+                for item in borrar:
                     del st.session_state["carrito"][item]
                     st.rerun()
 
                 st.divider()
-                st.subheader(f"Total: ${total_usd_carrito:.2f} ({(total_usd_carrito * tasa_bcv):.2f} Bs.)")
-                
-                if st.button("🚀 ENVIAR PEDIDO POR WHATSAPP", use_container_width=True):
-                    # Generar Ticket
-                    texto_pedido = "*📦 NUEVO PEDIDO - PÍLLALO* ⚡\n\n"
+                st.subheader(f"Total: ${t_usd:.2f} ({(t_usd * tasa_bcv):.2f} Bs.)")
+                if st.button("🚀 ENVIAR PEDIDO COMPLETO", use_container_width=True):
+                    txt = "*📦 NUEVO PEDIDO - PÍLLALO* ⚡\n\n"
                     for p, info in st.session_state["carrito"].items():
-                        texto_pedido += f"- {info['cant']}x {p} (${info['precio']:.2f})\n"
-                    
-                    texto_pedido += f"\n💰 *TOTAL USD:* ${total_usd_carrito:.2f}"
-                    texto_pedido += f"\n📉 *TASA BCV:* {tasa_bcv:.2f} Bs."
-                    texto_pedido += f"\n💸 *TOTAL BS:* {(total_usd_carrito * tasa_bcv):.2f} Bs."
-                    texto_pedido += "\n\n¿Tienen disponibilidad? 🌩️"
-                    
-                    # Usamos el teléfono del primer producto del carrito
-                    tel_destino = list(st.session_state["carrito"].values())[0]['tel']
-                    link_final = f"https://wa.me/{tel_destino}?text={urllib.parse.quote(texto_pedido)}"
-                    st.markdown(f'<meta http-equiv="refresh" content="0;URL={link_final}">', unsafe_allow_html=True)
+                        txt += f"- {info['cant']}x {p} (${info['precio']:.2f})\n"
+                    txt += f"\n💰 *TOTAL:* ${t_usd:.2f} ({(t_usd * tasa_bcv):.2f} Bs.)"
+                    tel_d = list(st.session_state["carrito"].values())[0]['tel']
+                    st.markdown(f'<meta http-equiv="refresh" content="0;URL=https://wa.me/{tel_d}?text={urllib.parse.quote(txt)}">', unsafe_allow_html=True)
 
-        # 2. FILTRADO Y DISPLAY
+        # 2. SECCIÓN 🔥 DESTACADOS (RESTAURADA)
         df_filtered = df.copy()
         if query:
             df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
-        
-        df_display = df_filtered.reset_index(drop=True)
 
-        # 3. MATRIZ DE PRODUCTOS
+        if 'Prioridad' in df_filtered.columns and not query:
+            df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
+            top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
+            
+            if not top_items.empty:
+                st.markdown("### 🔥 Destacados")
+                cols_top = st.columns([1]*len(top_items) + [4])
+                for i, (idx, row) in enumerate(top_items.iterrows()):
+                    with cols_top[i]:
+                        p_r = str(row.get('Precio', '0')).replace(',', '.')
+                        p_f = float(re.sub(r'[^\d.]', '', p_r)) if p_r else 0.0
+                        st.markdown(f'''
+                            <div style="text-align: center; background: white; border-radius: 10px; border: 1px solid #eee; padding: 5px;">
+                                <img src="{row.get('Foto', '')}" style="width:100%; height:60px; object-fit:contain;">
+                                <div style="font-size:10px; font-weight:bold; color:#333; overflow:hidden; white-space:nowrap;">{row['Producto']}</div>
+                                <div style="color:#001F3F; font-size:11px; font-weight:bold;">${p_f:.2f}</div>
+                            </div>
+                        ''', unsafe_allow_html=True)
+                        if st.button("➕", key=f"add_top_{idx}", use_container_width=True):
+                            p_n = row['Producto']
+                            tel_p = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
+                            if p_n in st.session_state["carrito"]: st.session_state["carrito"][p_n]['cant'] += 1
+                            else: st.session_state["carrito"][p_n] = {'precio': p_f, 'tel': tel_p, 'cant': 1}
+                            st.toast(f"{p_n} añadido! 🛒")
+                            st.rerun()
+                st.divider()
+
+        # 3. MATRIZ GENERAL
+        df_display = df_filtered.reset_index(drop=True)
         st.subheader("Catálogo")
         cols = st.columns(3)
-        
         for idx, row in df_display.iterrows():
             with cols[idx % 3]:
                 try:
-                    p_raw = str(row.get('Precio', '0')).replace(',', '.')
-                    p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
+                    p_rm = str(row.get('Precio', '0')).replace(',', '.')
+                    p_usd = float(re.sub(r'[^\d.]', '', p_rm)) if p_rm else 0.0
                 except: p_usd = 0.0
-                
                 st.markdown(f"""
                     <div class="product-card">
                         <img src="{row.get('Foto', '')}" class="img-contain">
@@ -224,20 +233,12 @@ if st.session_state["perfil"] == "Invitado":
                         <div class="bcv-style">{(p_usd * tasa_bcv):.2f} Bs.</div>
                     </div>
                 """, unsafe_allow_html=True)
-                
                 tel_prod = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
-                
                 if st.button(f"➕ Añadir", key=f"btn_{idx}", use_container_width=True):
-                    p_nombre = row['Producto']
-                    if p_nombre in st.session_state["carrito"]:
-                        st.session_state["carrito"][p_nombre]['cant'] += 1
-                    else:
-                        st.session_state["carrito"][p_nombre] = {
-                            'precio': p_usd,
-                            'tel': tel_prod,
-                            'cant': 1
-                        }
-                    st.toast(f"¡{p_nombre} al carrito! 🛒")
+                    p_nom = row['Producto']
+                    if p_nom in st.session_state["carrito"]: st.session_state["carrito"][p_nom]['cant'] += 1
+                    else: st.session_state["carrito"][p_nom] = {'precio': p_usd, 'tel': tel_prod, 'cant': 1}
+                    st.toast(f"¡{p_nom} al carrito!")
                     st.rerun()
 
 # --- PERFIL: EMPRESA  ---
