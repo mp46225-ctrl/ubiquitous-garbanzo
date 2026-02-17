@@ -124,22 +124,22 @@ if st.session_state["perfil"] == "Invitado":
             scrollbar-width: thin;
         }
         .scroll-item {
-            flex: 0 0 auto;
-            width: 150px;
-            background: #1e1e1e;
-            border-radius: 10px;
-            padding: 10px;
-            text-align: center;
-            border: 1px solid #333;
-        }
-        .product-card {
-            background: #1e1e1e;
-            padding: 15px;
-            border-radius: 15px;
-            border: 1px solid #333;
-            margin-bottom: 20px;
-            height: 100%;
-        }
+    flex: 0 0 auto;
+    width: 120px; /* Un pelín más ancho para que respire */
+    background: #1e1e1e;
+    border-radius: 12px;
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #333;
+    /* Evita que el texto largo empuje la caja hacia abajo */
+    overflow: hidden; 
+}
+
+.scroll-item div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
         </style>
     """, unsafe_allow_html=True)
 
