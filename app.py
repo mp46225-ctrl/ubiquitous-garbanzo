@@ -57,6 +57,12 @@ def registrar_estadistica(evento, detalle):
     except: pass
 
 # --- 6. BARRA LATERAL (LOGIN Y SOPORTE) ---
+
+# Bloque de prueba (puedes borrarlo después)
+if spreadsheet:
+    nombres_hojas = [w.title for w in spreadsheet.worksheets()]
+    st.sidebar.write("Hojas encontradas:", nombres_hojas)
+
 with st.sidebar:
     st.title("⚡ Píllalo")
     st.metric("Tasa BCV Hoy", f"{tasa_bcv:.2f} Bs.")
