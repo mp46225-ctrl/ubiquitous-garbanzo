@@ -214,11 +214,13 @@ if st.session_state["perfil"] == "Invitado":
                         </a>
                     """, unsafe_allow_html=True)
 
-# --- PERFIL: EMPRESA ---
+# --- PERFIL: EMPRESA (CON MARKETING Y PLANES RESTAURADOS) ---
 elif st.session_state["perfil"] == "Empresa":
     tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
     st.title(f"🏢 Portal: {tienda_user}")
-    t1, t2 = st.tabs(["📦 Inventario", "📤 Subir Excel"])
+    
+    # Restauramos las 4 pestañas clave
+    t1, t2, t3, t4 = st.tabs(["📦 Inventario", "📈 Marketing", "💎 Mi Plan", "📤 Subir Excel"])
 
     with t1:
         if sheet:
@@ -229,13 +231,12 @@ elif st.session_state["perfil"] == "Empresa":
             if not mis_productos.empty:
                 st.dataframe(mis_productos.drop(columns=['fila']), use_container_width=True)
                 st.divider()
-                st.subheader("✏️ Editar Precio")
+                st.subheader("✏️ Editar Precio Rápido")
                 
-                # KEY ÚNICA para evitar el error DuplicateElementId
                 p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique(), key="sel_prod_empresa")
                 row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
                 
-                # Limpieza de precio
+                # Respetando punto para decimales
                 p_raw = str(row_p.get('Precio', '0.00')).replace(',', '.')
                 p_limpio = re.sub(r'[^\d.]', '', p_raw)
                 try: v_ini = float(p_limpio) if p_limpio else 0.00
@@ -244,19 +245,52 @@ elif st.session_state["perfil"] == "Empresa":
                 nuevo_p = st.number_input("Nuevo Precio ($):", value=v_ini, step=0.01, key="num_prec_empresa")
                 
                 if st.button("Actualizar Precio Ahora", key="btn_upd_empresa"):
-                    sheet.update_cell(int(row_p['fila']), 4, nuevo_p)
+                    sheet.update_cell(int(row_p['fila']), 4, str(nuevo_p).replace(',', '.'))
                     st.success(f"¡Actualizado a ${nuevo_p:.2f}!")
                     st.rerun()
             else:
-                st.info("No tienes productos cargados.")
+                st.info("Aún no tienes productos en vitrina.")
 
     with t2:
-        file = st.file_uploader("Sube Excel", type=['xlsx'], key="uploader_excel")
-        if file and st.button("🚀 Publicar", key="btn_pub_excel"):
+        st.subheader("📊 Rendimiento de Ventas")
+        c1, c2 = st.columns(2)
+        # Datos simulados basados en la tienda
+        c1.metric("Vistas de Perfil", "1,240", "+12%")
+        c2.metric("Clicks a WhatsApp", "85", "+5%")
+        
+        st.markdown("---")
+        st.subheader("📢 Ofertas Relámpago")
+        st.write("Configura un banner de oferta que aparecerá en la parte superior de la vitrina.")
+        promo_txt = st.text_input("Texto de la oferta", placeholder="Ej: ¡20% de descuento en toda la tienda!")
+        if st.button("Activar Promoción"):
+            st.success("¡Promoción enviada a revisión!")
+
+    with t3:
+        st.subheader("💎 Estado de la Suscripción")
+        col_p1, col_p2 = st.columns([2, 1])
+        
+        with col_p1:
+            st.info("🛡️ Tu plan actual es: **PRO COMERCIO**")
+            st.write("**Beneficios activos:**")
+            st.write("- ✅ Productos ilimitados")
+            st.write("- ✅ Botón de WhatsApp directo")
+            st.write("- ✅ Estadísticas en tiempo real")
+            st.write("- ✅ Soporte prioritario")
+        
+        with col_p2:
+            st.markdown("### Próximo Pago")
+            st.error("15 de Marzo")
+            st.button("Pagar Suscripción")
+
+    with t4:
+        st.subheader("📤 Carga Masiva")
+        st.write("Sube tu archivo Excel para actualizar todo tu catálogo de un solo golpe.")
+        file = st.file_uploader("Archivo .xlsx", type=['xlsx'], key="uploader_excel")
+        if file and st.button("🚀 Publicar Todo", key="btn_pub_excel"):
             df_new = pd.read_excel(file)
             df_new['Tienda'] = tienda_user
             sheet.append_rows(df_new.values.tolist(), value_input_option='USER_ENTERED')
-            st.success("¡Cargado!")
+            st.success("¡Catálogo actualizado correctamente!")
             st.rerun()
 
 # --- PIE ---
