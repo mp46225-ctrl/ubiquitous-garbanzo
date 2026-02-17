@@ -49,6 +49,9 @@ sheet = spreadsheet.sheet1 if spreadsheet else None
 if "logueado" not in st.session_state:
     st.session_state.update({"logueado": False, "perfil": "Invitado", "user_name": "", "tienda_asociada": "Todas"})
 
+if "carrito" not in st.session_state:
+    st.session_state["carrito"] = {}
+
 # --- 5. FUNCIONES DE APOYO ---
 def registrar_estadistica(evento, detalle):
     try:
@@ -198,49 +201,68 @@ if st.session_state["perfil"] == "Invitado":
                 st.divider()
 
         # 3. MATRIZ GENERAL (3 Columnas)
+        st.subheader("🛒 Tu Pedido")
+        # Mostrar resumen del carrito si tiene algo
+        if st.session_state["carrito"]:
+            with st.expander(f"📋 Ver mi pedido ({len(st.session_state['carrito'])} ítems)"):
+                total_usd_carrito = 0
+                for prod_name, info in list(st.session_state["carrito"].items()):
+                    c1, c2, c3 = st.columns([2, 1, 1])
+                    subtotal = info['precio'] * info['cant']
+                    total_usd_carrito += subtotal
+                    c1.write(f"**{prod_name}**")
+                    c2.write(f"{info['cant']}x")
+                    if c3.button("❌", key=f"del_{prod_name}"):
+                        del st.session_state["carrito"][prod_name]
+                        st.rerun()
+                
+                st.divider()
+                st.write(f"**Total Pedido: ${total_usd_carrito:.2f} ({total_usd_carrito * tasa_bcv:.2f} Bs.)**")
+                
+                # Botón Final para enviar todo el carrito
+                if st.button("🚀 Enviar Pedido Completo por WhatsApp", use_container_width=True):
+                    fecha_h = datetime.now().strftime("%d/%m/%Y")
+                    detalle_items = ""
+                    for p, info in st.session_state["carrito"].items():
+                        detalle_items += f"- {info['cant']}x {p} (${info['precio']:.2f})\n"
+                    
+                    ticket_final = (
+                        f"*📦 NUEVO PEDIDO MULTIPLE - PÍLLALO* ⚡\n"
+                        f"------------------------------\n"
+                        f"📅 *Fecha:* {fecha_h}\n"
+                        f"{detalle_items}"
+                        f"------------------------------\n"
+                        f"💰 *TOTAL USD:* ${total_usd_carrito:.2f}\n"
+                        f"📉 *TASA BCV:* {tasa_bcv:.2f} Bs.\n"
+                        f"💸 *TOTAL BS:* {(total_usd_carrito * tasa_bcv):.2f} Bs.\n"
+                        f"------------------------------\n"
+                        f"¿Tienen disponibilidad de todo? 🌩️"
+                    )
+                    # Usamos el teléfono del primer producto para el ejemplo o uno fijo
+                    tel_destino = list(st.session_state["carrito"].values())[0]['tel']
+                    webbrowser.open(f"https://wa.me/{tel_destino}?text={urllib.parse.quote(ticket_final)}")
+
+        st.divider()
         st.subheader("Catálogo de Productos")
-        df_display = df_filtered.reset_index(drop=True)
         cols = st.columns(3)
         
         for idx, row in df_display.iterrows():
             with cols[idx % 3]:
-                try:
-                    p_raw_m = str(row.get('Precio', '0')).replace(',', '.')
-                    p_usd = float(re.sub(r'[^\d.]', '', p_raw_m)) if p_raw_m else 0.0
-                except: p_usd = 0.0
+                # ... (tu código de estilo de tarjeta aquí) ...
                 
-                st.markdown(f"""
-                    <div class="product-card">
-                        <img src="{row.get('Foto', '')}" class="img-contain">
-                        <div style="font-size:14px; font-weight:bold; color:#222; height:35px; overflow:hidden;">{row['Producto']}</div>
-                        <div class="price-style">${p_usd:.2f}</div>
-                        <div class="bcv-style">{(p_usd * tasa_bcv):.2f} Bs.</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # --- TICKET PROFESIONAL PARA CATÁLOGO ---
-                tel = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
-                fecha_hoy = datetime.now().strftime("%d/%m/%Y")
-                ticket = (
-                    f"*📦 NUEVO PEDIDO - PÍLLALO* ⚡\n"
-                    f"------------------------------\n"
-                    f"📅 *Fecha:* {fecha_hoy}\n"
-                    f"🛍️ *Producto:* {row['Producto']}\n"
-                    f"💰 *Precio:* ${p_usd:.2f}\n"
-                    f"📉 *Tasa BCV:* {tasa_bcv:.2f} Bs.\n"
-                    f"💸 *Total en Bs:* {(p_usd * tasa_bcv):.2f} Bs.\n"
-                    f"------------------------------\n"
-                    f"¿Está disponible? ¡Píllalo! 🌩️"
-                )
-                msg_encoded = urllib.parse.quote(ticket)
-                
-                st.markdown(f"""
-                    <a href="https://wa.me/{tel}?text={msg_encoded}" target="_blank" style="text-decoration:none;">
-                        <div style="background-color:#25D366; color:white; padding:10px; text-align:center; border-radius:10px; font-weight:bold; font-size:13px; margin-top:-5px; margin-bottom:25px;">
-                            🛒 Enviar Pedido
-                        </div>
-                    </a>
-                """, unsafe_allow_html=True)
+                # BOTÓN DE AÑADIR (Reemplaza al de Pedir Directo)
+                if st.button(f"➕ Añadir", key=f"add_{idx}", use_container_width=True):
+                    p_id = row['Producto']
+                    if p_id in st.session_state["carrito"]:
+                        st.session_state["carrito"][p_id]['cant'] += 1
+                    else:
+                        st.session_state["carrito"][p_id] = {
+                            'precio': p_usd,
+                            'tel': tel,
+                            'cant': 1
+                        }
+                    st.toast(f"¡{p_id} añadido! 🛒")
+                    st.rerun()
 
 elif st.session_state["perfil"] == "Empresa":
     tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
