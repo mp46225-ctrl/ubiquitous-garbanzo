@@ -112,13 +112,27 @@ elif st.session_state["perfil"] == "Admin":
     t_adm1, t_adm2, t_adm3 = st.tabs(["💰 Aprobar Pagos", "📊 Inteligencia", "⚙️ Sistema"])
 
     with t_adm1:
-        st.subheader("Pagos Pendientes")
+        st.subheader("💰 Verificación de Pagos Premium")
         try:
+            # Intentamos conectar con la hoja Estadisticas
             est_sheet = spreadsheet.worksheet("Estadisticas")
             df_est = pd.DataFrame(est_sheet.get_all_records())
-            pagos = df_est[df_est['Evento'].str.contains("PAGO", na=False)]
-            st.dataframe(pagos, use_container_width=True)
-        except: st.error("No se encontró la pestaña 'Estadisticas'")
+            
+            if not df_est.empty:
+                # Buscamos solo los que dicen PAGO_PREMIUM
+                pagos = df_est[df_est['Evento'].str.contains("PAGO", na=False)]
+                
+                if not pagos.empty:
+                    st.write(f"Tienes **{len(pagos)}** registros de intención de pago:")
+                    st.dataframe(pagos, use_container_width=True)
+                else:
+                    st.info("No hay pagos registrados aún en la lista.")
+            else:
+                st.info("La hoja de Estadísticas está lista pero aún no tiene datos.")
+        
+        except gspread.exceptions.WorksheetNotFound:
+            st.error("❌ ERROR: No existe la pestaña 'Estadisticas' en el Google Sheet.")
+            st.info("💡 Ve a tu archivo 'Pillalo_Data' y crea una hoja llamada 'Estadisticas' para activar esta función.")
 
     with t_adm2:
         st.subheader("🔎 Análisis de Mercado")
