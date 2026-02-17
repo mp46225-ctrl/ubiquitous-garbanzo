@@ -183,34 +183,45 @@ if st.session_state["perfil"] == "Invitado":
                     st.markdown(scroll_html, unsafe_allow_html=True)
                     st.divider()
 
-            # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
+           # 3. MATRIZ DE PRODUCTOS (3 POR FILA)
             st.subheader("Todos los productos")
             
             cols = st.columns(3)
-            for idx, (_, row) in enumerate(df_filtered.iterrows()):
+            # Usamos reset_index para asegurar que idx siempre sea un número limpio
+            df_display = df_filtered.reset_index(drop=True)
+            
+            for idx, row in df_display.iterrows():
                 with cols[idx % 3]:
                     try:
                         p_raw = str(row.get('Precio', '0.00')).replace(',', '.')
                         p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.00
                     except: p_usd = 0.00
                     
+                    # Tarjeta de producto
                     st.markdown(f"""
                         <div class="product-card">
-                            <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; height:150px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
-                            <h4 style="margin:0; font-size:16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{row['Producto']}</h4>
-                            <p style="color:gray; font-size:12px; margin:5px 0;">🏪 {row['Tienda']}</p>
+                            <img src="{row.get('Foto', 'https://via.placeholder.com/150')}" style="width:100%; height:140px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
+                            <h4 style="margin:0; font-size:15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;">{row['Producto']}</h4>
+                            <p style="color:gray; font-size:11px; margin:2px 0;">🏪 {row['Tienda']}</p>
                             <h3 style="margin:5px 0; color:#00D1FF;">${p_usd:.2f}</h3>
-                            <p style="font-size:13px; color:#aaa; margin-bottom:0;">{p_usd * tasa_bcv:.2f} Bs.</p>
+                            <p style="font-size:12px; color:#aaa; margin-bottom:10px;">{p_usd * tasa_bcv:.2f} Bs.</p>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
+                    # --- BOTÓN DE WHATSAPP (HTML VERSION - ANTI ERRORES) ---
+                    tel_tienda = str(row.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
                     if not tel_tienda or tel_tienda == 'nan': tel_tienda = "584127522988"
-                    msg = f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* de Píllalo."
-                    link_pedido = f"https://wa.me/{tel_tienda}?text={urllib.parse.quote(msg)}"
                     
-                    st.link_button("🛒 Pedir", link_pedido, use_container_width=True, key=f"inv_btn_{idx}")
-                    st.write("")
+                    msg = urllib.parse.quote(f"Hola {row['Tienda']}, quiero el producto *{row['Producto']}* que vi en Píllalo.")
+                    link_pedido = f"https://wa.me/{tel_tienda}?text={msg}"
+                    
+                    st.markdown(f"""
+                        <a href="{link_pedido}" target="_blank" style="text-decoration:none;">
+                            <div style="background-color:#25D366; color:white; padding:8px; text-align:center; border-radius:8px; font-weight:bold; font-size:14px; margin-bottom:20px;">
+                                🛒 Pedir
+                            </div>
+                        </a>
+                    """, unsafe_allow_html=True)
 
 # --- PERFIL: ADMIN ---
 elif st.session_state["perfil"] == "Admin":
