@@ -282,51 +282,69 @@ elif st.session_state["perfil"] == "Empresa":
             st.error("15 de Marzo")
             st.button("Pagar Suscripción")
 
-    with t4:
-        st.subheader("📤 Carga Masiva y Herramientas de Imagen")
+   with t4:
+        st.subheader("🖼️ Gestor de Imágenes y Carga Masiva")
         
-        # --- HERRAMIENTA DE ENLACES DE DRIVE ---
-        with st.expander("🔗 Generador de Links Directos para Fotos (Google Drive)"):
-            st.write("Pegá el link de 'Compartir' de tu foto en Drive para obtener el link directo:")
-            link_drive = st.text_input("Enlace de Google Drive", placeholder="https://drive.google.com/file/d/...")
+        # --- CONFIGURACIÓN API IMGBB ---
+        # Pegá aquí tu API Key de ImgBB
+        IMGBB_API_KEY = "1f2081c8821957a63c9a0c0df237fdba" 
+
+        # --- SUBIDOR DE FOTOS REAL ---
+        with st.expander("📸 PASO 1: Subir fotos y obtener enlaces directos"):
+            st.write("Subí la foto para obtener el link que pondrás en el Excel.")
+            img_file = st.file_uploader("Selecciona una imagen", type=['png', 'jpg', 'jpeg'], key="img_uploader")
             
-            if link_drive:
-                # Lógica de conversión que ya manejamos
-                try:
-                    file_id = ""
-                    if "id=" in link_drive:
-                        file_id = link_drive.split("id=")[1].split("&")[0]
-                    elif "d/" in link_drive:
-                        file_id = link_drive.split("d/")[1].split("/")[0]
-                    
-                    direct_link = f"https://drive.google.com/uc?export=view&id={file_id}"
-                    st.success("¡Link Directo Generado!")
-                    st.code(direct_link, language="text")
-                    st.caption("Copiá este link y pegalo en la columna 'Foto' de tu Excel.")
-                except:
-                    st.error("El formato del link no parece correcto. Revisalo, primo.")
+            if img_file:
+                if st.button("Generar Enlace"):
+                    with st.spinner("Subiendo a la nube de Píllalo..."):
+                        try:
+                            # Preparar la imagen para la API
+                            url = "https://api.imgbb.com/1/upload"
+                            payload = {
+                                "key": IMGBB_API_KEY,
+                            }
+                            files = {
+                                "image": img_file.getvalue(),
+                            }
+                            response = requests.post(url, payload, files=files)
+                            data = response.json()
+                            
+                            if data["status"] == 200:
+                                # Este es el link directo al archivo
+                                direct_link = data["data"]["url"]
+                                
+                                st.image(img_file, width=150)
+                                st.success("✅ ¡Imagen lista para el inventario!")
+                                st.code(direct_link, language="text")
+                                st.caption("Copiá este enlace y pegalo en la columna 'Foto' de tu Excel.")
+                            else:
+                                st.error("Error de ImgBB. Revisá tu API Key.")
+                        except Exception as e:
+                            st.error(f"Error de conexión: {e}")
 
         st.divider()
 
         # --- CARGA DE EXCEL ---
-        st.write("### Subir Archivo de Inventario")
-        st.info("Asegurate de que tu Excel tenga las columnas: Producto, Tienda, Precio, Foto, Telefono, Prioridad.")
+        st.write("### 📥 PASO 2: Subir archivo de Inventario")
+        st.info("Asegurate de que tu Excel use puntos para los decimales (Ej: 2.15).")
+        
         file = st.file_uploader("Archivo .xlsx", type=['xlsx'], key="uploader_excel")
         
-        if file and st.button("🚀 Publicar Todo", key="btn_pub_excel"):
+        if file and st.button("🚀 Publicar en Vitrina", key="btn_pub_excel"):
             try:
                 df_new = pd.read_excel(file)
                 df_new['Tienda'] = tienda_user
                 
-                # Limpieza de precios antes de subir para asegurar el punto decimal
+                # REGLA DE ORO: Limpieza de precios automática (Comas por Puntos)
                 if 'Precio' in df_new.columns:
                     df_new['Precio'] = df_new['Precio'].astype(str).str.replace(',', '.')
                 
+                # Subida a Sheets
                 sheet.append_rows(df_new.values.tolist(), value_input_option='USER_ENTERED')
-                st.success(f"¡Molleja! Cargaste {len(df_new)} productos de un solo viaje.")
+                st.success(f"¡Molleja! {len(df_new)} productos nuevos publicados.")
                 st.rerun()
             except Exception as e:
-                st.error(f"Algo salió mal: {e}")
+                st.error(f"Error al subir el Excel: {e}")
 
 # --- PIE ---
 st.divider()
