@@ -110,33 +110,46 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
-# --- PERFIL: INVITADO (VERSIÓN FINAL SIN ERRORES) ---
+# --- PERFIL: INVITADO (VERSIÓN BRANDED) ---
 if st.session_state["perfil"] == "Invitado":
+    # 1. LOGO Y ENCABEZADO
+    # Puedes cambiar la URL por el link de tu logo real
+    logo_url = "https://i.ibb.co/LzMhV7G/pillalo-logo.png" # Ejemplo, pon aquí tu link de ImgBB
+    
+    col_log1, col_log2, col_log3 = st.columns([1, 2, 1])
+    with col_log2:
+        # Si tienes el logo, usa st.image. Si no, un título con estilo:
+        st.markdown(f"""
+            <div style="text-align: center;">
+                <h1 style="color: #FFD700; text-shadow: 2px 2px #000; font-size: 50px; margin-bottom: 0;">PÍLLALO</h1>
+                <p style="color: #666; font-style: italic; margin-top: 0;">¡Lo que buscas, al mejor precio!</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # 2. CSS DE COLORES DE MARCA
     st.markdown("""
         <style>
-        .scroll-container {
-            display: flex; flex-direction: row; overflow-x: auto;
-            white-space: nowrap; padding: 10px 0px; gap: 15px; scrollbar-width: none;
+        /* Cambiamos el color de los títulos y acentos a un amarillo vibrante */
+        h3, h4 { color: #222 !important; }
+        .stButton>button {
+            border-radius: 20px;
+            border: 1px solid #FFD700;
+            background-color: white;
+            color: black;
         }
-        .scroll-container::-webkit-scrollbar { display: none; }
-        .scroll-item {
-            flex: 0 0 auto; width: 110px; background: #ffffff;
-            border-radius: 10px; padding: 8px; text-align: center;
-            border: 1px solid #eee; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
+        .stButton>button:hover {
+            background-color: #FFD700;
+            color: black;
+            border: 1px solid #000;
         }
+        /* Ajuste de las tarjetas para que resalten más */
         .product-card {
-            background: white; padding: 12px; border-radius: 15px;
-            border: 1px solid #f0f0f0; text-align: center;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.03); height: 260px;
-        }
-        .img-contain {
-            width: 100%; height: 120px; object-fit: contain;
-            margin-bottom: 10px; background: white;
+            border-top: 4px solid #FFD700 !important; /* Línea de marca arriba */
         }
         </style>
     """, unsafe_allow_html=True)
-
-    st.title("🔍 Vitrina Maracaibo")
+    
+    # ... (Aquí sigue el resto de tu código: Buscador, Top, Matriz)
     
     if sheet:
         df = pd.DataFrame(sheet.get_all_records())
