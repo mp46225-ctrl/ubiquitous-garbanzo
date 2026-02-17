@@ -174,10 +174,28 @@ if st.session_state["perfil"] == "Invitado":
         # 1. BUSCADOR
         query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
         
-        # 2. SECCIÓN RECOMENDADOS (Sigue igual)
+        # 2. SECCIÓN 🔥 RECOMENDADOS
         df_filtered = df.copy()
         if query:
             df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
+
+        if 'Prioridad' in df_filtered.columns and not query:
+            df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
+            top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
+            if not top_items.empty:
+                st.markdown("### 🔥 Recomendados")
+                cols_top = st.columns([1]*len(top_items) + [4])
+                for i, (idx, row) in enumerate(top_items.iterrows()):
+                    with cols_top[i]:
+                        try:
+                            p_f_t = float(re.sub(r'[^\d.,]', '', str(row.get('Precio', '0'))).replace(',', '.'))
+                        except: p_f_t = 0.0
+                        st.markdown(f'<div style="text-align:center;"><img src="{row.get("Foto","")}" style="height:50px; object-fit:contain;"><br><b style="font-size:10px;">${p_f_t:.2f}</b></div>', unsafe_allow_html=True)
+                        if st.button("➕", key=f"top_{idx}", use_container_width=True):
+                            pn = row['Producto']
+                            if pn in st.session_state["carrito"]: st.session_state["carrito"][pn]['cant'] += 1
+                            else: st.session_state["carrito"][pn] = {'precio': p_f_t, 'tel': row['Telefono'], 'cant': 1}
+                            st.rerun()
 
         # 3. MATRIZ GENERAL (INTEGRADA)
         tab_cat, tab_fav = st.tabs(["🛒 Catálogo", "❤️ Favoritos"])
