@@ -158,28 +158,18 @@ if st.session_state["perfil"] == "Invitado":
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. ENCABEZADO CON TU LOGO
-    # REEMPLAZA ESTA URL con el link de tu logo cuando lo subas
-    logo_url = "https://i.ibb.co/LzMhV7G/pillalo-logo.png" 
+   # 1. LOGO Y ENCABEZADO (CORREGIDO)
+    # He extraído el link directo para que la imagen cargue de una vez
+    logo_pillalo = "https://i.ibb.co/cKnXPjwT/pillalo-logo.png" 
     
     st.markdown(f"""
-        <div class="logo-container">
-            <img src="{https://ibb.co/cKnXPjwT}" width="180">
+        <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+            <img src="https://i.ibb.co/4Z9YF8YF/pillalo.png" width="200">
         </div>
-        <p style="text-align: center; color: #666; font-style: italic;">¡Píllalo, pedilo y listo!</p>
+        <p style="text-align: center; color: #001F3F; font-weight: bold; font-style: italic; margin-top: -10px;">
+            ¡Píllalo, pedilo y listo!
+        </p>
     """, unsafe_allow_html=True)
-
-    if sheet:
-        df = pd.DataFrame(sheet.get_all_records())
-        if not df.empty:
-            # 3. BUSCADOR LIMPIO
-            query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy?", key="search_bar")
-            
-            df_filtered = df.copy()
-            if query:
-                df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
-
-            st.divider()
 
             # 4. MATRIZ DE PRODUCTOS (ORDENADA)
             # Usamos 2 columnas para móviles o 3 para PC de forma automática
