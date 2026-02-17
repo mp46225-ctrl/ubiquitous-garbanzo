@@ -61,7 +61,7 @@ def registrar_estadistica(evento, detalle):
 # --- 6. BARRA LATERAL (LOGIN Y TASA) ---
 with st.sidebar:
     st.title("⚡ Píllalo")
-    st.metric("Tasa BCV Hoy", f"{tasa_bcv} Bs.")
+    st.metric("Tasa BCV Hoy", f"{tasa_bcv:.2f} Bs.")
     st.divider()
     
     if not st.session_state["logueado"]:
@@ -129,32 +129,49 @@ elif st.session_state["perfil"] == "Empresa":
     st.title("🏢 Portal Business")
     t1, t2, t3 = st.tabs(["📦 Mis Productos", "📤 Carga & Tutorial", "🔥 Marketing"])
 
-    with t1:
-        st.subheader("📦 Gestión de tu Inventario")
+   with t1:
+        st.subheader("📦 Gestión de Inventario por Sucursal")
         if sheet:
-            # Traemos todos los datos de la hoja
+            # Traemos la data fresca
             df_e = pd.DataFrame(sheet.get_all_records())
             
             if not df_e.empty:
-                # Obtenemos el usuario actual (ej: 'empresa')
-                usuario_actual = st.session_state["user_name"].strip().upper()
+                # Obtenemos la lista de todas las tiendas únicas en el Excel
+                todas_las_sucursales = sorted(df_e['Tienda'].unique())
                 
-                # Filtramos: Buscamos donde la columna 'Tienda' coincida con el usuario
-                # Usamos .astype(str) por si hay números y .str.upper() para que no fallen las mayúsculas
-                mis_datos = df_e[df_e['Tienda'].astype(str).str.upper() == usuario_actual]
+                # Selector inteligente
+                st.write("Selecciona la sucursal que deseas gestionar:")
+                sucursal_sel = st.selectbox("📍 Sucursal:", todas_las_sucursales)
+                
+                # Filtramos la data por la sucursal elegida
+                mis_datos = df_e[df_e['Tienda'] == sucursal_sel]
                 
                 if not mis_datos.empty:
-                    st.write(f"✅ Mostrando **{len(mis_datos)}** productos registrados bajo el nombre: `{st.session_state['user_name']}`")
-                    st.dataframe(mis_datos, use_container_width=True)
-                else:
-                    st.warning(f"⚠️ No se encontraron productos para la tienda: **{st.session_state['user_name']}**")
-                    st.info("💡 Asegúrate de que en tu archivo Excel, la columna **'Tienda'** diga exactamente igual que tu usuario de acceso.")
+                    # Métricas rápidas de la sucursal
+                    c_inv1, c_inv2 = st.columns(2)
+                    c_inv1.metric("Productos", len(mis_datos))
+                    # Calculamos el precio promedio solo para dar un dato extra
+                    try:
+                        promedio = mis_datos['Precio'].astype(str).str.replace(',', '.').astype(float).mean()
+                        c_inv2.metric("Precio Promedio", f"${promedio:.2f}")
+                    except: pass
                     
-                    # Opcional: Mostrar una lista de las tiendas que SÍ existen en la base de datos
-                    tiendas_existentes = df_e['Tienda'].unique()
-                    st.write("Tiendas detectadas actualmente en el sistema:", list(tiendas_existentes))
+                    st.divider()
+                    st.write(f"📋 Inventario actual de: **{sucursal_sel}**")
+                    st.dataframe(mis_datos, use_container_width=True)
+                    
+                    # Botón para descargar solo este inventario
+                    csv = mis_datos.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Exportar este inventario a CSV",
+                        data=csv,
+                        file_name=f"inventario_{sucursal_sel.replace(' ', '_')}.csv",
+                        mime='text/csv',
+                    )
+                else:
+                    st.warning("No hay productos registrados para esta sucursal.")
             else:
-                st.info("La base de datos está vacía por ahora.")
+                st.info("Aún no hay datos cargados en el sistema.")
 
     with t2:
         st.subheader("🚀 Guía de Carga Rápida")
