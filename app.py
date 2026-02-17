@@ -215,27 +215,80 @@ elif st.session_state["perfil"] == "Admin":
             st.cache_data.clear()
             st.rerun()
 
-# --- PERFIL: EMPRESA ---
+# --- PERFIL: EMPRESA (Socio Comercial) ---
 elif st.session_state["perfil"] == "Empresa":
-    st.title(f"🏢 Panel: {st.session_state['user_name']}")
-    t1, t2, t3 = st.tabs(["📦 Inventario", "📤 Carga", "🚀 Marketing"])
+    tienda_user = st.session_state.get("tienda_asociada", "")
+    st.title(f"🏢 Portal Business: {tienda_user}")
     
-    # Aquí el filtro de tienda es automático según el usuario
-    tienda_user = st.session_state["tienda_asociada"]
+    t1, t2, t3 = st.tabs(["📦 Mi Inventario", "📤 Carga Masiva", "🚀 Marketing & Planes"])
 
     with t1:
+        st.subheader(f"Gestión de Productos - {tienda_user}")
         if sheet:
-            df_e = pd.DataFrame(sheet.get_all_records())
-            df_e['fila'] = df_e.index + 2
-            # Si es una empresa específica, solo ve lo suyo
-            mis_datos = df_e[df_e['Tienda'] == tienda_user] if tienda_user != "Todas" else df_e
+            # Cargamos la data y añadimos el número de fila real del Excel
+            df_full = pd.DataFrame(sheet.get_all_records())
+            df_full['fila_excel'] = df_full.index + 2  
+            
+            # FILTRO DE SEGURIDAD: Solo ve lo que le pertenece
+            mis_datos = df_full[df_full['Tienda'] == tienda_user]
             
             if not mis_datos.empty:
-                st.dataframe(mis_datos.drop(columns=['fila']), use_container_width=True)
-                # Lógica de Modificar/Eliminar igual a la anterior...
-            else: st.warning("No tienes productos cargados aún.")
+                # Mostramos la tabla limpia (sin la columna de la fila técnica)
+                st.dataframe(mis_datos.drop(columns=['fila_excel']), use_container_width=True)
+                
+                st.divider()
+                col_mod, col_del = st.columns(2)
+                
+                with col_mod:
+                    st.markdown("### ✏️ Modificar Producto")
+                    prod_sel = st.selectbox("Selecciona producto para editar:", mis_datos['Producto'].unique())
+                    datos_p = mis_datos[mis_datos['Producto'] == prod_sel].iloc[0]
+                    
+                    n_nom = st.text_input("Nuevo Nombre:", value=datos_p['Producto'])
+                    # Usamos el formato de punto para decimales como pediste
+                    n_pre = st.number_input("Nuevo Precio ($):", value=float(str(datos_p['Precio']).replace(',','.')), step=0.01)
+                    
+                    if st.button("💾 Guardar Cambios"):
+                        # Actualizamos celdas específicas (Col 1=Producto, Col 4=Precio)
+                        sheet.update_cell(int(datos_p['fila_excel']), 1, n_nom)
+                        sheet.update_cell(int(datos_p['fila_excel']), 4, n_pre)
+                        st.success(f"✅ {n_nom} actualizado correctamente.")
+                        st.rerun()
+                
+                with col_del:
+                    st.markdown("### 🗑️ Dar de Baja")
+                    st.warning("Esta acción eliminará el producto de la vitrina pública.")
+                    if st.button("❌ Confirmar Eliminación"):
+                        sheet.delete_rows(int(datos_p['fila_excel']))
+                        st.error("Producto eliminado.")
+                        st.rerun()
+            else:
+                st.info(f"Aún no tienes productos registrados para **{tienda_user}**. ¡Usa la pestaña de Carga Masiva!")
 
-    # ... (Resto de pestañas t2 y t3 igual al código anterior)
+    with t2:
+        st.subheader("📤 Cargar Nuevo Inventario")
+        st.write("Sube tu archivo Excel con las columnas: `Producto`, `Tienda`, `Zona`, `Precio`, `WhatsApp`, `Categoria`, `Pago`, `Calificacion`, `Foto`.")
+        
+        up_ex = st.file_uploader("Seleccionar Excel (.xlsx)", type=['xlsx'])
+        if up_ex:
+            df_subida = pd.read_excel(up_ex)
+            # Forzamos que la columna Tienda sea la del usuario para evitar errores
+            df_subida['Tienda'] = tienda_user
+            
+            if st.button("🚀 Publicar en Vitrina"):
+                # Limpiamos precios (coma por punto) antes de subir
+                if 'Precio' in df_subida.columns:
+                    df_subida['Precio'] = df_subida['Precio'].astype(str).str.replace(',', '.').astype(float)
+                
+                sheet.append_rows(df_subida.values.tolist(), value_input_option='USER_ENTERED')
+                st.balloons()
+                st.success(f"¡Éxito! Has cargado {len(df_subida)} productos nuevos.")
+
+    with t3:
+        st.subheader("🚀 Impulsa tu marca en Maracaibo")
+        # Aquí va tu lógica de Marketing que ya tienes...
+        st.write("Selecciona un plan para destacar tus productos en la página principal.")
+
 
 # --- 8. SECCIÓN DE SOPORTE DINÁMICO (SIDEBAR) ---
 with st.sidebar:
