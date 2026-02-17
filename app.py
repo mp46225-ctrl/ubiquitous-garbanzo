@@ -117,7 +117,12 @@ with st.sidebar:
 
 # --- 7. LÓGICA DE PANTALLAS ---
 
+# --- PERFIL: INVITADO (CON CARRITO Y ESCUDO) ---
 if st.session_state["perfil"] == "Invitado":
+    # Inicializar carrito si no existe
+    if "carrito" not in st.session_state:
+        st.session_state["carrito"] = {}
+
     st.markdown("""
         <style>
         .product-card {
@@ -138,7 +143,6 @@ if st.session_state["perfil"] == "Invitado":
     st.title("🔎 Vitrina Maracaibo")
     
     if sheet:
-        # --- ESCUDO DE SEGURIDAD AL CARGAR DATOS ---
         try:
             raw_data = sheet.get_all_records()
             if not raw_data:
@@ -146,124 +150,97 @@ if st.session_state["perfil"] == "Invitado":
                 st.stop()
             df = pd.DataFrame(raw_data)
             
-            # Validación de columnas básicas
-            for col in ['Producto', 'Tienda', 'Precio', 'Foto', 'Telefono']:
-                if col not in df.columns:
-                    st.error(f"Falta la columna '{col}' en la base de datos.")
-                    st.stop()
-        except Exception:
-            st.error("Error al conectar con la base de datos.")
+            # ESCUDO: Si falta 'Telefono', lo creamos vacío para que no explote
+            if 'Telefono' not in df.columns:
+                df['Telefono'] = "584127522988" # Tu número por defecto
+        except Exception as e:
+            st.error(f"Error cargando datos: {e}")
             st.stop()
 
-        # 1. BUSCADOR
+        # 1. BUSCADOR Y CARRITO FLOTANTE
         query = st.text_input("", placeholder="🔎 ¿Qué buscáis hoy, primo?", key="main_search")
+        
+        # --- SECCIÓN DEL CARRITO (ARRIBA) ---
+        if st.session_state["carrito"]:
+            with st.expander(f"🛒 VER MI PEDIDO ({sum(item['cant'] for item in st.session_state['carrito'].values())} productos)"):
+                total_usd_carrito = 0
+                items_para_borrar = []
+                
+                for prod_name, info in st.session_state["carrito"].items():
+                    subtotal = info['precio'] * info['cant']
+                    total_usd_carrito += subtotal
+                    c1, c2, c3 = st.columns([3, 1, 1])
+                    c1.write(f"**{prod_name}** (${info['precio']:.2f})")
+                    c2.write(f"{info['cant']}x")
+                    if c3.button("❌", key=f"del_{prod_name}"):
+                        items_para_borrar.append(prod_name)
+                
+                for item in items_para_borrar:
+                    del st.session_state["carrito"][item]
+                    st.rerun()
+
+                st.divider()
+                st.subheader(f"Total: ${total_usd_carrito:.2f} ({(total_usd_carrito * tasa_bcv):.2f} Bs.)")
+                
+                if st.button("🚀 ENVIAR PEDIDO POR WHATSAPP", use_container_width=True):
+                    # Generar Ticket
+                    texto_pedido = "*📦 NUEVO PEDIDO - PÍLLALO* ⚡\n\n"
+                    for p, info in st.session_state["carrito"].items():
+                        texto_pedido += f"- {info['cant']}x {p} (${info['precio']:.2f})\n"
+                    
+                    texto_pedido += f"\n💰 *TOTAL USD:* ${total_usd_carrito:.2f}"
+                    texto_pedido += f"\n📉 *TASA BCV:* {tasa_bcv:.2f} Bs."
+                    texto_pedido += f"\n💸 *TOTAL BS:* {(total_usd_carrito * tasa_bcv):.2f} Bs."
+                    texto_pedido += "\n\n¿Tienen disponibilidad? 🌩️"
+                    
+                    # Usamos el teléfono del primer producto del carrito
+                    tel_destino = list(st.session_state["carrito"].values())[0]['tel']
+                    link_final = f"https://wa.me/{tel_destino}?text={urllib.parse.quote(texto_pedido)}"
+                    st.markdown(f'<meta http-equiv="refresh" content="0;URL={link_final}">', unsafe_allow_html=True)
+
+        # 2. FILTRADO Y DISPLAY
         df_filtered = df.copy()
         if query:
             df_filtered = df_filtered[df_filtered['Producto'].astype(str).str.contains(query, case=False, na=False)]
+        
+        df_display = df_filtered.reset_index(drop=True)
 
-        # 2. PRODUCTOS TOP (CINTA HORIZONTAL)
-        if 'Prioridad' in df_filtered.columns and not query:
-            df_filtered['Prioridad'] = pd.to_numeric(df_filtered['Prioridad'], errors='coerce').fillna(0)
-            top_items = df_filtered[df_filtered['Prioridad'] > 0].sort_values(by='Prioridad', ascending=False)
-            
-            if not top_items.empty:
-                st.markdown("### 🔥 Destacados")
-                cols_top = st.columns([1]*len(top_items) + [4])
-                for i, (idx, row) in enumerate(top_items.iterrows()):
-                    with cols_top[i]:
-                        p_raw = str(row.get('Precio', '0')).replace(',', '.')
-                        p_f = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
-                        
-                        st.markdown(f'''
-                            <div style="text-align: center; background: white; border-radius: 10px; border: 1px solid #eee; padding: 5px;">
-                                <img src="{row.get('Foto', '')}" style="width:100%; height:60px; object-fit:contain;">
-                                <div style="font-size:10px; font-weight:bold; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row['Producto']}</div>
-                                <div style="color:#001F3F; font-size:11px; font-weight:bold;">${p_f:.2f}</div>
-                            </div>
-                        ''', unsafe_allow_html=True)
-                        
-                        if st.button("🔍", key=f"top_{idx}", use_container_width=True):
-                            @st.dialog(f"{row['Producto']}")
-                            def detalle_top(item, precio):
-                                st.image(item.get('Foto', ""), use_container_width=True)
-                                c1, c2 = st.columns(2)
-                                c1.metric("Precio USD", f"${precio:.2f}")
-                                c2.metric("Precio BCV", f"{(precio * tasa_bcv):.2f} Bs.")
-                                st.write(f"🏠 **Tienda:** {item['Tienda']}")
-                                
-                                # TICKET PARA DESTACADOS
-                                tel = str(item.get('Telefono', '584127522988')).replace('+', '').replace(' ', '').strip()
-                                fecha_t = datetime.now().strftime("%d/%m/%Y")
-                                msg_t = (f"*📦 NUEVO PEDIDO - PÍLLALO* ⚡\n---\n📅 *Fecha:* {fecha_t}\n🛍️ *Producto:* {item['Producto']}\n"
-                                         f"💰 *Precio:* ${precio:.2f}\n📉 *Tasa BCV:* {tasa_bcv:.2f} Bs.\n💸 *Total:* {(precio * tasa_bcv):.2f} Bs.\n---\n¿Está disponible?")
-                                st.link_button("🛒 Pedir Ahora", f"https://wa.me/{tel}?text={urllib.parse.quote(msg_t)}", use_container_width=True)
-                            detalle_top(row, p_f)
-                st.divider()
-
-        # 3. MATRIZ GENERAL (3 Columnas)
-        st.subheader("🛒 Tu Pedido")
-        # Mostrar resumen del carrito si tiene algo
-        if st.session_state["carrito"]:
-            with st.expander(f"📋 Ver mi pedido ({len(st.session_state['carrito'])} ítems)"):
-                total_usd_carrito = 0
-                for prod_name, info in list(st.session_state["carrito"].items()):
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    subtotal = info['precio'] * info['cant']
-                    total_usd_carrito += subtotal
-                    c1.write(f"**{prod_name}**")
-                    c2.write(f"{info['cant']}x")
-                    if c3.button("❌", key=f"del_{prod_name}"):
-                        del st.session_state["carrito"][prod_name]
-                        st.rerun()
-                
-                st.divider()
-                st.write(f"**Total Pedido: ${total_usd_carrito:.2f} ({total_usd_carrito * tasa_bcv:.2f} Bs.)**")
-                
-                # Botón Final para enviar todo el carrito
-                if st.button("🚀 Enviar Pedido Completo por WhatsApp", use_container_width=True):
-                    fecha_h = datetime.now().strftime("%d/%m/%Y")
-                    detalle_items = ""
-                    for p, info in st.session_state["carrito"].items():
-                        detalle_items += f"- {info['cant']}x {p} (${info['precio']:.2f})\n"
-                    
-                    ticket_final = (
-                        f"*📦 NUEVO PEDIDO MULTIPLE - PÍLLALO* ⚡\n"
-                        f"------------------------------\n"
-                        f"📅 *Fecha:* {fecha_h}\n"
-                        f"{detalle_items}"
-                        f"------------------------------\n"
-                        f"💰 *TOTAL USD:* ${total_usd_carrito:.2f}\n"
-                        f"📉 *TASA BCV:* {tasa_bcv:.2f} Bs.\n"
-                        f"💸 *TOTAL BS:* {(total_usd_carrito * tasa_bcv):.2f} Bs.\n"
-                        f"------------------------------\n"
-                        f"¿Tienen disponibilidad de todo? 🌩️"
-                    )
-                    # Usamos el teléfono del primer producto para el ejemplo o uno fijo
-                    tel_destino = list(st.session_state["carrito"].values())[0]['tel']
-                    webbrowser.open(f"https://wa.me/{tel_destino}?text={urllib.parse.quote(ticket_final)}")
-
-        st.divider()
-        st.subheader("Catálogo de Productos")
+        # 3. MATRIZ DE PRODUCTOS
+        st.subheader("Catálogo")
         cols = st.columns(3)
         
         for idx, row in df_display.iterrows():
             with cols[idx % 3]:
-                # ... (tu código de estilo de tarjeta aquí) ...
+                try:
+                    p_raw = str(row.get('Precio', '0')).replace(',', '.')
+                    p_usd = float(re.sub(r'[^\d.]', '', p_raw)) if p_raw else 0.0
+                except: p_usd = 0.0
                 
-                # BOTÓN DE AÑADIR (Reemplaza al de Pedir Directo)
-                if st.button(f"➕ Añadir", key=f"add_{idx}", use_container_width=True):
-                    p_id = row['Producto']
-                    if p_id in st.session_state["carrito"]:
-                        st.session_state["carrito"][p_id]['cant'] += 1
+                st.markdown(f"""
+                    <div class="product-card">
+                        <img src="{row.get('Foto', '')}" class="img-contain">
+                        <div style="font-size:14px; font-weight:bold; color:#222; height:35px; overflow:hidden;">{row['Producto']}</div>
+                        <div class="price-style">${p_usd:.2f}</div>
+                        <div class="bcv-style">{(p_usd * tasa_bcv):.2f} Bs.</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                tel_prod = str(row.get('Telefono', '584127522988')).replace('+', '').strip()
+                
+                if st.button(f"➕ Añadir", key=f"btn_{idx}", use_container_width=True):
+                    p_nombre = row['Producto']
+                    if p_nombre in st.session_state["carrito"]:
+                        st.session_state["carrito"][p_nombre]['cant'] += 1
                     else:
-                        st.session_state["carrito"][p_id] = {
+                        st.session_state["carrito"][p_nombre] = {
                             'precio': p_usd,
-                            'tel': tel,
+                            'tel': tel_prod,
                             'cant': 1
                         }
-                    st.toast(f"¡{p_id} añadido! 🛒")
+                    st.toast(f"¡{p_nombre} al carrito! 🛒")
                     st.rerun()
 
+# --- PERFIL: EMPRESA  ---
 elif st.session_state["perfil"] == "Empresa":
     tienda_user = st.session_state.get("tienda_asociada", "Sin Tienda")
     st.title(f"🏢 Portal: {tienda_user}")
