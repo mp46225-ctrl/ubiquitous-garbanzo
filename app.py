@@ -223,33 +223,29 @@ elif st.session_state["perfil"] == "Empresa":
     t1, t2, t3, t4 = st.tabs(["📦 Inventario", "📈 Marketing", "💎 Mi Plan", "📤 Subir Excel"])
 
     with t1:
-        if sheet:
-            df_full = pd.DataFrame(sheet.get_all_records())
-            df_full['fila'] = df_full.index + 2
-            mis_productos = df_full[df_full['Tienda'] == tienda_user]
-            
-            if not mis_productos.empty:
-                st.dataframe(mis_productos.drop(columns=['fila']), use_container_width=True)
-                st.divider()
-                st.subheader("✏️ Editar Precio Rápido")
+        # --- NUEVA FUNCIÓN: CARGA RÁPIDA (SIN EXCEL) ---
+        with st.expander("➕ Cargar UN producto rápido (Sin Excel)"):
+            with st.form("form_rapido"):
+                nuevo_nombre = st.text_input("Nombre del Producto")
+                nuevo_precio = st.number_input("Precio ($)", min_value=0.0, step=0.01)
+                nueva_foto = st.text_input("Link de la Foto (Usá el Gestor de la pestaña 4)")
+                nueva_prioridad = st.selectbox("¿Es destacado?", [0, 1, 2, 3])
                 
-                p_sel = st.selectbox("Selecciona producto:", mis_productos['Producto'].unique(), key="sel_prod_empresa")
-                row_p = mis_productos[mis_productos['Producto'] == p_sel].iloc[0]
-                
-                # Respetando punto para decimales
-                p_raw = str(row_p.get('Precio', '0.00')).replace(',', '.')
-                p_limpio = re.sub(r'[^\d.]', '', p_raw)
-                try: v_ini = float(p_limpio) if p_limpio else 0.00
-                except: v_ini = 0.00
-                
-                nuevo_p = st.number_input("Nuevo Precio ($):", value=v_ini, step=0.01, key="num_prec_empresa")
-                
-                if st.button("Actualizar Precio Ahora", key="btn_upd_empresa"):
-                    sheet.update_cell(int(row_p['fila']), 4, str(nuevo_p).replace(',', '.'))
-                    st.success(f"¡Actualizado a ${nuevo_p:.2f}!")
-                    st.rerun()
-            else:
-                st.info("Aún no tienes productos en vitrina.")
+                if st.form_submit_button("🚀 Publicar en Vitrina"):
+                    if nuevo_nombre and nueva_foto:
+                        # Buscamos el teléfono de la tienda en los registros existentes
+                        tel_tienda = mis_productos['Telefono'].iloc[0] if not mis_productos.empty else "58412"
+                        
+                        # Guardamos con punto decimal
+                        nueva_fila = [nuevo_nombre, tienda_user, nueva_prioridad, str(nuevo_precio).replace(',', '.'), nueva_foto, tel_tienda]
+                        sheet.append_row(nueva_fila, value_input_option='USER_ENTERED')
+                        st.success(f"¡{nuevo_nombre} ya está en la calle!")
+                        st.rerun()
+                    else:
+                        st.warning("Llená el nombre y la foto, primo.")
+        
+        st.divider()
+        # Aquí sigue tu código de mostrar el dataframe y editar precio...
 
     with t2:
         st.subheader("📊 Rendimiento de Ventas")
