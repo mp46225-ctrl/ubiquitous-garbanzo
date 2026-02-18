@@ -387,6 +387,8 @@ elif st.session_state["perfil"] == "Empresa":
             f"📸 *Adjunta la foto de este producto al enviar este mensaje.*"
         )
         
+        # Usamos urllib para codificar el mensaje correctamente
+        import urllib.parse
         link_carga_wa = f"https://wa.me/584127522988?text={urllib.parse.quote(msg_carga)}"
         
         st.markdown(f"""
@@ -444,6 +446,7 @@ elif st.session_state["perfil"] == "Empresa":
                 if st.button("🚀 Publicar Todo el Inventario", key="btn_publish_bulk_t4"):
                     with st.spinner("Subiendo datos..."):
                         df_bulk['Tienda'] = tienda_user
+                        # Intentamos sacar el teléfono de la tienda de los productos existentes
                         try:
                             tel_tienda = mis_productos['Telefono'].iloc[0] if not mis_productos.empty else "584127522988"
                         except:
@@ -451,6 +454,7 @@ elif st.session_state["perfil"] == "Empresa":
                         
                         df_bulk['Telefono'] = tel_tienda
                         
+                        # Limpieza de precios para asegurar el punto decimal
                         if 'Precio' in df_bulk.columns:
                             df_bulk['Precio'] = df_bulk['Precio'].astype(str).str.replace(',', '.')
                         
