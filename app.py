@@ -373,7 +373,7 @@ elif st.session_state["perfil"] == "Empresa":
     with t4:
         st.subheader("📤 Carga Masiva y Remota")
         
-        # --- 1. CARGA RÁPIDA DESDE WHATSAPP (PARA EL ENCARGADO) ---
+        # --- 1. CARGA RÁPIDA DESDE WHATSAPP ---
         st.markdown("### 🤳 1. Cargar desde el Teléfono")
         st.info("Ideal para el encargado de tienda: envía foto y precio rápidamente por WhatsApp.")
         
@@ -386,11 +386,10 @@ elif st.session_state["perfil"] == "Empresa":
             f"----------------------------------\n"
             f"📸 *Adjunta la foto de este producto al enviar este mensaje.*"
         )
-        # Codificamos el mensaje para que sea un link válido
-        import urllib.parse
+        
         link_carga_wa = f"https://wa.me/584127522988?text={urllib.parse.quote(msg_carga)}"
         
-                st.markdown(f"""
+        st.markdown(f"""
             <a href="{link_carga_wa}" target="_blank" style="text-decoration:none;">
                 <div style="background-color:#25D366;color:white;padding:20px;text-align:center;border-radius:12px;font-weight:bold;border: 2px solid #128C7E;">
                     📷 ENVIAR FOTO Y PRECIO POR WHATSAPP
@@ -407,14 +406,14 @@ elif st.session_state["perfil"] == "Empresa":
         
         IMGBB_API_KEY = "1f2081c8821957a63c9a0c0df237fdba"
         
-        uploaded_images = st.file_uploader("Elegí una o varias imágenes", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
+        uploaded_images = st.file_uploader("Elegí una o varias imágenes", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True, key="bulk_img_u")
         
         if uploaded_images:
             cols_img = st.columns(2)
             for i, img_file in enumerate(uploaded_images):
                 with cols_img[i % 2]:
                     if st.button(f"Generar Link para: {img_file.name}", key=f"btn_img_t4_{i}"):
-                        with st.spinner("Subiendo a la nube..."):
+                        with st.spinner("Subiendo..."):
                             try:
                                 res = requests.post(
                                     "https://api.imgbb.com/1/upload",
@@ -422,34 +421,29 @@ elif st.session_state["perfil"] == "Empresa":
                                     files={"image": img_file.getvalue()}
                                 )
                                 if res.json()["status"] == 200:
-                                    url_generada = res.json()["data"]["url"]
-                                    st.success(f"¡Link listo!")
-                                    st.code(url_generada)
+                                    url_gen = res.json()["data"]["url"]
+                                    st.success("¡Link listo!")
+                                    st.code(url_gen)
                                 else:
-                                    st.error("Error al subir imagen.")
-                            except Exception as e:
-                                st.error(f"Fallo de conexión: {e}")
+                                    st.error("Error al subir.")
+                            except:
+                                st.error("Error de conexión.")
 
         st.divider()
 
         # --- 3. CARGA DE EXCEL ---
         st.markdown("### 📊 3. Subir Inventario desde Excel")
-        st.write("El archivo debe tener las columnas: *Producto, Prioridad, Precio, Foto*.")
         
-        archivo_excel = st.file_uploader("Seleccioná tu archivo .xlsx", type=['xlsx'], key="uploader_excel")
+        archivo_excel = st.file_uploader("Seleccioná tu archivo .xlsx", type=['xlsx'], key="uploader_excel_t4")
         
         if archivo_excel:
             try:
                 df_bulk = pd.read_excel(archivo_excel)
-                st.write("Vista previa del archivo:")
                 st.dataframe(df_bulk.head(), use_container_width=True)
                 
-                if st.button("🚀 Publicar Todo el Inventario", key="btn_publish_bulk"):
-                    with st.spinner("Subiendo datos a la nube..."):
-                        # Inyectamos datos de sesión automáticamente
+                if st.button("🚀 Publicar Todo el Inventario", key="btn_publish_bulk_t4"):
+                    with st.spinner("Subiendo datos..."):
                         df_bulk['Tienda'] = tienda_user
-                        
-                        # Buscamos el teléfono de la tienda para que no sea manual en el Excel
                         try:
                             tel_tienda = mis_productos['Telefono'].iloc[0] if not mis_productos.empty else "584127522988"
                         except:
@@ -457,24 +451,17 @@ elif st.session_state["perfil"] == "Empresa":
                         
                         df_bulk['Telefono'] = tel_tienda
                         
-                        # Limpieza de precios: Aseguramos el punto decimal como pediste
                         if 'Precio' in df_bulk.columns:
                             df_bulk['Precio'] = df_bulk['Precio'].astype(str).str.replace(',', '.')
                         
-                        # Definimos el orden exacto de las columnas en Google Sheets
                         columnas_esperadas = ['Producto', 'Tienda', 'Prioridad', 'Precio', 'Foto', 'Telefono']
-                        
-                        # Filtramos solo las columnas que existan para evitar errores
                         df_final = df_bulk[[c for c in columnas_esperadas if c in df_bulk.columns]]
                         
-                        # Subida masiva
                         sheet.append_rows(df_final.values.tolist(), value_input_option='USER_ENTERED')
-                        
-                        st.success(f"✅ ¡Éxito! Se cargaron {len(df_final)} productos.")
-                        st.balloons()
+                        st.success(f"✅ ¡Éxito! Cargados {len(df_final)} productos.")
                         st.rerun()
             except Exception as e:
-                st.error(f"Hubo un error al procesar el Excel: {e}")
+                st.error(f"Error: {e}")
 
 st.divider()
 st.caption(f"Píllalo 2026 | Tasa: {tasa_bcv:.2f} Bs.")
